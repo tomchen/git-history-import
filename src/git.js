@@ -34,3 +34,22 @@ export function getRepoRoot() {
 export function getCommitHash(ref) {
   return execSync(`git rev-parse ${ref}`, { encoding: 'utf-8' }).trim();
 }
+
+export function createBackupBranch() {
+  const timestamp = Date.now();
+  const branchName = `githe-backup-${timestamp}`;
+  execSync(`git branch ${branchName}`, { stdio: 'pipe' });
+  return branchName;
+}
+
+export function gitFastImport(stream) {
+  execSync('git fast-import --force --quiet', {
+    input: stream,
+    encoding: 'utf-8',
+    maxBuffer: 100 * 1024 * 1024,
+  });
+}
+
+export function gitResetHard(ref) {
+  execSync(`git reset --hard ${ref}`, { stdio: 'pipe' });
+}
