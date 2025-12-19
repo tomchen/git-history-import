@@ -22,9 +22,9 @@ function makeCommit({ ref = 'refs/heads/master', mark, oid, author, committer, m
   return lines.join('\n');
 }
 
-const ALICE = { name: 'Alice', email: 'alice@example.com', date: '1700000000 +0000' };
-const BOB   = { name: 'Bob',   email: 'bob@example.com',   date: '1700000001 +0100' };
-const CAROL = { name: 'Carol', email: 'carol@example.com', date: '1700000002 +0000' };
+const ALICE = { name: 'Alice', email: 'alice@example.com', date: '2023-11-14 22:13:20 +0000' };
+const BOB   = { name: 'Bob',   email: 'bob@example.com',   date: '2023-11-14 23:13:21 +0100' };
+const CAROL = { name: 'Carol', email: 'carol@example.com', date: '2023-11-14 22:13:22 +0000' };
 
 // ── Test 1: replaces author name and email ────────────────────────────────────
 
@@ -90,7 +90,7 @@ test('replaces committer date', () => {
     msg: 'some commit',
   });
 
-  const newCommitter = { name: BOB.name, email: BOB.email, date: '1999999999 +0530' };
+  const newCommitter = { name: BOB.name, email: BOB.email, date: '2033-05-18 09:03:19 +0530' };
   const commits = [{
     original_hash: 'cccccccccccccccccccccccccccccccccccccccc',
     message: 'some commit',
@@ -100,7 +100,8 @@ test('replaces committer date', () => {
   }];
 
   const result = patchFastExportStream(stream, commits);
-  assert.ok(result.includes('1999999999 +0530'), 'new committer date should appear');
+  // humanDateToGit converts "2033-05-18 07:03:19 +0530" → "1999999999 +0530"
+  assert.ok(result.includes('1999999999 +0530'), 'new committer date should appear in git raw format');
   assert.ok(!result.includes('1700000001 +0100'), 'old committer date should not appear');
 });
 

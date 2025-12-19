@@ -105,11 +105,11 @@ export function patchFastExportStream(stream, commits) {
         } else if (hdr.startsWith('author ')) {
           // Replace with patched author
           const { name, email, date } = commit.author;
-          emit(`author ${name} <${email}> ${date}`);
+          emit(`author ${name} <${email}> ${humanDateToGit(date)}`);
         } else if (hdr.startsWith('committer ')) {
           // Replace with patched committer
           const { name, email, date } = commit.committer;
-          emit(`committer ${name} <${email}> ${date}`);
+          emit(`committer ${name} <${email}> ${humanDateToGit(date)}`);
         } else if (hdr.startsWith('data ')) {
           // Replace with patched message
           const oldLen = parseInt(hdr.slice(5), 10);
@@ -220,6 +220,31 @@ export function patchFastExportStream(stream, commits) {
  * Count the number of commit blocks in a fast-export stream by scanning for
  * lines that start with "commit ".
  */
+/**
+ * Convert human-readable date back to git raw format.
+ * Accepts: "2026-03-26 19:52:56 +0100" → "1774729976 +0100"
+ * Also accepts raw git format "1774729976 +0100" as passthrough.
+ */
+function humanDateToGit(date) {
+  // If it already looks like a raw git date (starts with digits, no dashes), passthrough
+  if (/^\d+ [+-]\d{4}$/.test(date)) return date;
+
+  // Parse "YYYY-MM-DD HH:MM:SS +ZZZZ"
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$/);
+  if (!match) throw new Error(`Unrecognized date format: ${date}`);
+
+  const [, y, mo, d, h, mi, s, tz] = match;
+  const sign = tz[0] === '+' ? 1 : -1;
+  const tzH = parseInt(tz.slice(1, 3), 10);
+  const tzM = parseInt(tz.slice(3, 5), 10);
+  const offsetMs = sign * (tzH * 60 + tzM) * 60000;
+
+  // Build UTC date from local components
+  const utcMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, +s) - offsetMs;
+  const timestamp = Math.floor(utcMs / 1000);
+  return `${timestamp} ${tz}`;
+}
+
 function countCommits(stream) {
   let count = 0;
   let i = 0;

@@ -56,15 +56,16 @@ export function parseFastExport(stream) {
   /**
    * Parse an author/committer line of the form:
    *   Name <email> timestamp timezone
+   * Returns date as human-readable ISO-like string: "2026-03-28 20:53:44 +0100"
    */
   function parseIdentity(line) {
-    // Split off the trailing "timestamp timezone" (two space-separated tokens)
     const gtIdx = line.lastIndexOf('>');
     const afterGt = line.slice(gtIdx + 2); // skip '> '
     const ltIdx = line.indexOf('<');
     const name = line.slice(0, ltIdx).trimEnd();
     const email = line.slice(ltIdx + 1, gtIdx);
-    const date = afterGt.trim();
+    const raw = afterGt.trim();
+    const date = gitDateToHuman(raw);
     return { name, email, date };
   }
 
@@ -205,4 +206,25 @@ export function parseFastExport(stream) {
   }
 
   return { commits, raw: stream, markToOid };
+}
+
+/**
+ * Convert git raw date "1774729976 +0100" to "2026-03-26 19:52:56 +0100".
+ */
+function gitDateToHuman(raw) {
+  const [timestamp, tz] = raw.split(' ');
+  const sec = parseInt(timestamp, 10);
+  // Build date string in UTC then apply timezone offset for display
+  const sign = tz[0] === '+' ? 1 : -1;
+  const tzH = parseInt(tz.slice(1, 3), 10);
+  const tzM = parseInt(tz.slice(3, 5), 10);
+  const offsetMs = sign * (tzH * 60 + tzM) * 60000;
+  const local = new Date(sec * 1000 + offsetMs);
+  const y = local.getUTCFullYear();
+  const mo = String(local.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(local.getUTCDate()).padStart(2, '0');
+  const h = String(local.getUTCHours()).padStart(2, '0');
+  const mi = String(local.getUTCMinutes()).padStart(2, '0');
+  const s = String(local.getUTCSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d} ${h}:${mi}:${s} ${tz}`;
 }

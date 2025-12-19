@@ -36,11 +36,11 @@ test('parses a single commit with no files', () => {
 
   assert.equal(c.author.name, 'Alice');
   assert.equal(c.author.email, 'alice@example.com');
-  assert.equal(c.author.date, '1700000000 +0000');
+  assert.equal(c.author.date, '2023-11-14 22:13:20 +0000');
 
   assert.equal(c.committer.name, 'Bob');
   assert.equal(c.committer.email, 'bob@example.com');
-  assert.equal(c.committer.date, '1700000001 +0100');
+  assert.equal(c.committer.date, '2023-11-14 23:13:21 +0100');
 
   assert.equal(raw, stream);
   assert.ok(markToOid instanceof Map);

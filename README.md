@@ -54,12 +54,12 @@ Each exported file looks like this:
       "author": {
         "name": "Jane Smith",
         "email": "jane@example.com",
-        "date": "1705312200 +0000"
+        "date": "2024-01-15 10:30:00 +0000"
       },
       "committer": {
         "name": "Jane Smith",
         "email": "jane@example.com",
-        "date": "1705312200 +0000"
+        "date": "2024-01-15 10:30:00 +0000"
       },
       "parents": ["9f8e7d6c5b4a..."]
     }
@@ -67,7 +67,7 @@ Each exported file looks like this:
 }
 ```
 
-The `date` field uses Unix timestamp format: `<seconds-since-epoch> <timezone-offset>` (e.g. `1705312200 +0200`).
+The `date` field uses human-readable format: `YYYY-MM-DD HH:MM:SS +ZZZZ` (e.g. `2024-01-15 10:30:00 +0200`). Raw git format (`1705312200 +0200`) is also accepted during import.
 
 ## What Can Be Modified
 
