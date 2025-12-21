@@ -19,7 +19,7 @@ export function isWorkingTreeClean() {
 }
 
 export function gitFastExport(range) {
-  const rangeArg = range || '--all';
+  const rangeArg = range || `refs/heads/${getCurrentBranch()}`;
   return execSync(`git fast-export ${rangeArg} --show-original-ids`, { encoding: 'utf-8', maxBuffer: 100 * 1024 * 1024 });
 }
 
