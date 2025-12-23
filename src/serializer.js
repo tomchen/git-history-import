@@ -246,15 +246,27 @@ function humanDateToGit(date) {
 }
 
 function countCommits(stream) {
+  const buf = Buffer.from(stream, 'utf8');
+  let pos = 0;
   let count = 0;
-  let i = 0;
-  while (i < stream.length) {
-    // Find the next newline
-    const nl = stream.indexOf('\n', i);
-    const end = nl === -1 ? stream.length : nl;
-    const line = stream.slice(i, end);
+
+  function readLine() {
+    const start = pos;
+    while (pos < buf.length && buf[pos] !== 0x0a) pos++;
+    const line = buf.toString('utf8', start, pos);
+    if (pos < buf.length) pos++;
+    return line;
+  }
+
+  while (pos < buf.length) {
+    const line = readLine();
     if (line.startsWith('commit ')) count++;
-    i = end + 1;
+    // Skip past data blocks so their content isn't mistaken for commands
+    if (line.startsWith('data ')) {
+      const n = parseInt(line.slice(5), 10);
+      pos += n;
+      if (pos < buf.length && buf[pos] === 0x0a) pos++;
+    }
   }
   return count;
 }

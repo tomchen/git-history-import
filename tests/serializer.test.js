@@ -238,3 +238,28 @@ test('throws when stream commit count does not match commits array length', () =
     /commit count mismatch/i,
   );
 });
+
+// ── Test 7: commit message containing "commit refs/heads" is not miscounted ──
+
+test('does not miscount "commit " lines inside commit messages or blob data', () => {
+  const msgWithCommitKeyword = 'docs: add plan\n\nExample:\ncommit refs/heads/master\nmark :1\ncommit refs/heads/feature';
+  const stream = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: msgWithCommitKeyword,
+  });
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: msgWithCommitKeyword,
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  // Should NOT throw — there is 1 real commit, not 3
+  const result = patchFastExportStream(stream, commits);
+  assert.ok(result.includes('docs: add plan'));
+});
