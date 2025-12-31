@@ -2,16 +2,45 @@
   "name": "githe",
   "version": "0.1.0",
   "description": "Export git history to JSON, edit it, import it back",
+  "type": "module",
   "bin": {
     "githe": "./bin/githe.js"
   },
-  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/**/*.test.js"
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "git",
+    "history",
+    "export",
+    "import",
+    "json"
+  ],
   "license": "MIT",
-  "keywords": ["git", "history", "export", "import", "json"]
+  "devDependencies": {
+    "@biomejs/biome": "^1",
+    "@vitest/coverage-v8": "^3",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
 }
