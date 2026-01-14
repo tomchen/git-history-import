@@ -1,5 +1,5 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { expect } from 'vitest';
 import { parseFastExport } from '../src/parser.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ import { parseFastExport } from '../src/parser.js';
 // Array.join('\n') can supply the separator between elements.  The real
 // git fast-export format places `from`/`merge`/file-op lines immediately
 // after the message bytes + one newline with no blank-line gap.
-function dataBlock(msg) {
+function dataBlock(msg: string) {
   const bytes = Buffer.byteLength(msg, 'utf8');
   return `data ${bytes}\n${msg}`;
 }
@@ -28,23 +28,23 @@ test('parses a single commit with no files', () => {
 
   const { commits, raw, markToOid } = parseFastExport(stream);
 
-  assert.equal(commits.length, 1);
+  expect(commits.length).toBe(1);
   const c = commits[0];
-  assert.equal(c.original_hash, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-  assert.equal(c.message, 'initial commit');
-  assert.deepEqual(c.parents, []);
+  expect(c.original_hash).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  expect(c.message).toBe('initial commit');
+  expect(c.parents).toEqual([]);
 
-  assert.equal(c.author.name, 'Alice');
-  assert.equal(c.author.email, 'alice@example.com');
-  assert.equal(c.author.date, '2023-11-14 22:13:20 +0000');
+  expect(c.author.name).toBe('Alice');
+  expect(c.author.email).toBe('alice@example.com');
+  expect(c.author.date).toBe('2023-11-14 22:13:20 +0000');
 
-  assert.equal(c.committer.name, 'Bob');
-  assert.equal(c.committer.email, 'bob@example.com');
-  assert.equal(c.committer.date, '2023-11-14 23:13:21 +0100');
+  expect(c.committer.name).toBe('Bob');
+  expect(c.committer.email).toBe('bob@example.com');
+  expect(c.committer.date).toBe('2023-11-14 23:13:21 +0100');
 
-  assert.equal(raw, stream);
-  assert.ok(markToOid instanceof Map);
-  assert.equal(markToOid.get(1), 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  expect(raw).toBe(stream);
+  expect(markToOid).toBeInstanceOf(Map);
+  expect(markToOid.get(1)).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 });
 
 // ── Test 2: multiple commits with parent relationships ────────────────────────
@@ -68,9 +68,9 @@ test('parses multiple commits with parent relationships resolved via mark-to-oid
 
   const { commits } = parseFastExport(stream);
 
-  assert.equal(commits.length, 2);
-  assert.deepEqual(commits[0].parents, []);
-  assert.deepEqual(commits[1].parents, ['1111111111111111111111111111111111111111']);
+  expect(commits.length).toBe(2);
+  expect(commits[0].parents).toEqual([]);
+  expect(commits[1].parents).toEqual(['1111111111111111111111111111111111111111']);
 });
 
 // ── Test 3: blob blocks between commits ──────────────────────────────────────
@@ -104,12 +104,12 @@ test('handles blob blocks between commits without corrupting output', () => {
 
   const { commits } = parseFastExport(stream);
 
-  assert.equal(commits.length, 2);
-  assert.equal(commits[0].original_hash, 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111');
-  assert.equal(commits[0].message, 'commit one');
-  assert.equal(commits[1].original_hash, 'cccc3333cccc3333cccc3333cccc3333cccc3333');
-  assert.equal(commits[1].message, 'commit two');
-  assert.deepEqual(commits[1].parents, ['aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111']);
+  expect(commits.length).toBe(2);
+  expect(commits[0].original_hash).toBe('aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111');
+  expect(commits[0].message).toBe('commit one');
+  expect(commits[1].original_hash).toBe('cccc3333cccc3333cccc3333cccc3333cccc3333');
+  expect(commits[1].message).toBe('commit two');
+  expect(commits[1].parents).toEqual(['aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111']);
 });
 
 // ── Test 4: merge commit with multiple parents ────────────────────────────────
@@ -140,10 +140,10 @@ test('parses merge commits with multiple parents (from + merge)', () => {
 
   const { commits } = parseFastExport(stream);
 
-  assert.equal(commits.length, 3);
+  expect(commits.length).toBe(3);
   const merge = commits[2];
-  assert.equal(merge.original_hash, '3333333333333333333333333333333333333333');
-  assert.deepEqual(merge.parents, [
+  expect(merge.original_hash).toBe('3333333333333333333333333333333333333333');
+  expect(merge.parents).toEqual([
     '1111111111111111111111111111111111111111',
     '2222222222222222222222222222222222222222',
   ]);
@@ -155,7 +155,7 @@ test('result.raw equals the input stream exactly', () => {
   const stream = 'commit refs/heads/master\nmark :1\noriginal-oid abcd1234abcd1234abcd1234abcd1234abcd1234\nauthor Z <z@z.com> 1000000000 +0000\ncommitter Z <z@z.com> 1000000000 +0000\ndata 3\nhi\n\n';
 
   const { raw } = parseFastExport(stream);
-  assert.equal(raw, stream);
+  expect(raw).toBe(stream);
 });
 
 // ── Test 6: multiline commit messages ────────────────────────────────────────
@@ -173,8 +173,8 @@ test('parses multiline commit messages using byte-counting', () => {
 
   const { commits } = parseFastExport(stream);
 
-  assert.equal(commits.length, 1);
-  assert.equal(commits[0].message, msg);
+  expect(commits.length).toBe(1);
+  expect(commits[0].message).toBe(msg);
 });
 
 // ── Test 7: mark-to-oid resolution with interspersed reset and blob blocks ───
@@ -208,10 +208,10 @@ test('resolves mark-to-oid correctly when reset and blob blocks are interspersed
 
   // mark :2 is a blob — should NOT appear in markToOid as a commit oid
   // but mark :1 and :3 should map to their commit oids
-  assert.equal(markToOid.get(1), '1111111111111111111111111111111111111111');
-  assert.equal(markToOid.get(3), '3333333333333333333333333333333333333333');
+  expect(markToOid.get(1)).toBe('1111111111111111111111111111111111111111');
+  expect(markToOid.get(3)).toBe('3333333333333333333333333333333333333333');
 
-  assert.equal(commits.length, 2);
+  expect(commits.length).toBe(2);
   // second commit's parent resolves to commit :1's oid
-  assert.deepEqual(commits[1].parents, ['1111111111111111111111111111111111111111']);
+  expect(commits[1].parents).toEqual(['1111111111111111111111111111111111111111']);
 });

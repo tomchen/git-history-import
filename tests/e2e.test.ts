@@ -1,5 +1,5 @@
-import { describe, it, before, after } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, beforeAll, afterAll } from 'vitest';
+import { expect } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,7 @@ import { execSync } from 'node:child_process';
 
 const CLI = join(import.meta.dirname, '..', 'bin', 'githe.js');
 
-function run(cmd, opts = {}) {
+function run(cmd: string, opts: Record<string, unknown> = {}) {
   return execSync(`node ${CLI} ${cmd}`, { encoding: 'utf-8', ...opts });
 }
 
@@ -26,16 +26,16 @@ function createTestRepo() {
 }
 
 describe('githe e2e', () => {
-  let origCwd;
-  let repoDir;
+  let origCwd: string;
+  let repoDir: string;
 
-  before(() => {
+  beforeAll(() => {
     origCwd = process.cwd();
     repoDir = createTestRepo();
     process.chdir(repoDir);
   });
 
-  after(() => {
+  afterAll(() => {
     process.chdir(origCwd);
     rmSync(repoDir, { recursive: true, force: true });
   });
@@ -47,8 +47,8 @@ describe('githe e2e', () => {
     run(`export -o ${jsonFile}`);
     const data = JSON.parse(readFileSync(jsonFile, 'utf-8'));
 
-    assert.equal(data.version, 1);
-    assert.equal(data.commits.length, 3);
+    expect(data.version).toBe(1);
+    expect(data.commits.length).toBe(3);
 
     // Edit: change all messages and the author of the first commit
     data.commits[0].message = 'MODIFIED: add a';
@@ -64,22 +64,22 @@ describe('githe e2e', () => {
 
     // Verify messages
     const log = execSync('git log --format="%s" --reverse', { encoding: 'utf-8' }).trim();
-    assert.equal(log, 'MODIFIED: add a\nMODIFIED: add b\nMODIFIED: update a');
+    expect(log).toBe('MODIFIED: add a\nMODIFIED: add b\nMODIFIED: update a');
 
     // Verify author
     const authors = execSync('git log --format="%an <%ae>" --reverse', { encoding: 'utf-8' }).trim().split('\n');
-    assert.equal(authors[0], 'Ghost <ghost@example.com>');
+    expect(authors[0]).toBe('Ghost <ghost@example.com>');
 
     // Verify file content preserved
-    assert.equal(readFileSync(join(repoDir, 'a.txt'), 'utf-8'), 'aaa updated');
-    assert.equal(readFileSync(join(repoDir, 'b.txt'), 'utf-8'), 'bbb');
+    expect(readFileSync(join(repoDir, 'a.txt'), 'utf-8')).toBe('aaa updated');
+    expect(readFileSync(join(repoDir, 'b.txt'), 'utf-8')).toBe('bbb');
 
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('shows usage with --help', () => {
     const output = run('--help');
-    assert.ok(output.includes('githe export'));
-    assert.ok(output.includes('githe import'));
+    expect(output).toContain('githe export');
+    expect(output).toContain('githe import');
   });
 });

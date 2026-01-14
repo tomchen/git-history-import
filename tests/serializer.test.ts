@@ -1,15 +1,29 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { expect } from 'vitest';
 import { patchFastExportStream } from '../src/serializer.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function dataBlock(msg) {
+function dataBlock(msg: string) {
   const bytes = Buffer.byteLength(msg, 'utf8');
   return `data ${bytes}\n${msg}`;
 }
 
-function makeCommit({ ref = 'refs/heads/master', mark, oid, author, committer, msg, extra = [] }) {
+interface Person {
+  name: string;
+  email: string;
+  date: string;
+}
+
+function makeCommit({ ref = 'refs/heads/master', mark, oid, author, committer, msg, extra = [] }: {
+  ref?: string;
+  mark: number;
+  oid: string;
+  author: Person;
+  committer: Person;
+  msg: string;
+  extra?: string[];
+}) {
   const lines = [
     `commit ${ref}`,
     `mark :${mark}`,
@@ -22,9 +36,9 @@ function makeCommit({ ref = 'refs/heads/master', mark, oid, author, committer, m
   return lines.join('\n');
 }
 
-const ALICE = { name: 'Alice', email: 'alice@example.com', date: '2023-11-14 22:13:20 +0000' };
-const BOB   = { name: 'Bob',   email: 'bob@example.com',   date: '2023-11-14 23:13:21 +0100' };
-const CAROL = { name: 'Carol', email: 'carol@example.com', date: '2023-11-14 22:13:22 +0000' };
+const ALICE: Person = { name: 'Alice', email: 'alice@example.com', date: '2023-11-14 22:13:20 +0000' };
+const BOB: Person   = { name: 'Bob',   email: 'bob@example.com',   date: '2023-11-14 23:13:21 +0100' };
+const CAROL: Person = { name: 'Carol', email: 'carol@example.com', date: '2023-11-14 22:13:22 +0000' };
 
 // ── Test 1: replaces author name and email ────────────────────────────────────
 
@@ -47,8 +61,8 @@ test('replaces author name and email', () => {
   }];
 
   const result = patchFastExportStream(stream, commits);
-  assert.ok(result.includes('author Zara <zara@new.com>'), 'new author name/email should appear');
-  assert.ok(!result.includes('Alice'), 'old author name should not appear');
+  expect(result).toContain('author Zara <zara@new.com>');
+  expect(result).not.toContain('Alice');
 });
 
 // ── Test 2: replaces commit message and updates data length ──────────────────
@@ -74,9 +88,9 @@ test('replaces commit message and updates data length', () => {
   }];
 
   const result = patchFastExportStream(stream, commits);
-  assert.ok(result.includes(`data ${newLen}`), 'data length should be updated');
-  assert.ok(result.includes(newMsg), 'new message should appear');
-  assert.ok(!result.includes(oldMsg), 'old message should not appear');
+  expect(result).toContain(`data ${newLen}`);
+  expect(result).toContain(newMsg);
+  expect(result).not.toContain(oldMsg);
 });
 
 // ── Test 3: replaces committer date ──────────────────────────────────────────
@@ -101,8 +115,8 @@ test('replaces committer date', () => {
 
   const result = patchFastExportStream(stream, commits);
   // humanDateToGit converts "2033-05-18 07:03:19 +0530" → "1999999999 +0530"
-  assert.ok(result.includes('1999999999 +0530'), 'new committer date should appear in git raw format');
-  assert.ok(!result.includes('1700000001 +0100'), 'old committer date should not appear');
+  expect(result).toContain('1999999999 +0530');
+  expect(result).not.toContain('1700000001 +0100');
 });
 
 // ── Test 4: handles multiple commits with blobs between them ─────────────────
@@ -165,16 +179,16 @@ test('handles multiple commits with blobs between them', () => {
   const result = patchFastExportStream(stream, commits);
 
   // Both commits patched
-  assert.ok(result.includes('Alice2'), 'first commit author should be patched');
-  assert.ok(result.includes('patched first'), 'first commit message should be patched');
-  assert.ok(result.includes('Bob2'), 'second commit author should be patched');
-  assert.ok(result.includes('patched second'), 'second commit message should be patched');
+  expect(result).toContain('Alice2');
+  expect(result).toContain('patched first');
+  expect(result).toContain('Bob2');
+  expect(result).toContain('patched second');
 
   // Blob blocks passed through verbatim
-  assert.ok(result.includes('ce013625030ba8dba906f756967f9e9ca394464a'), 'blob 1 original-oid should pass through');
-  assert.ok(result.includes('ce013625030ba8dba906f756967f9e9ca394464b'), 'blob 2 original-oid should pass through');
-  assert.ok(result.includes('hello\n'), 'blob 1 data should pass through');
-  assert.ok(result.includes('bye\n'), 'blob 2 data should pass through');
+  expect(result).toContain('ce013625030ba8dba906f756967f9e9ca394464a');
+  expect(result).toContain('ce013625030ba8dba906f756967f9e9ca394464b');
+  expect(result).toContain('hello\n');
+  expect(result).toContain('bye\n');
 });
 
 // ── Test 5: handles multiline commit messages ─────────────────────────────────
@@ -200,8 +214,8 @@ test('handles multiline commit messages with correct data byte length', () => {
   }];
 
   const result = patchFastExportStream(stream, commits);
-  assert.ok(result.includes(`data ${expectedLen}`), `data length should be ${expectedLen}`);
-  assert.ok(result.includes('line one\nline two\nline three'), 'multiline message should appear intact');
+  expect(result).toContain(`data ${expectedLen}`);
+  expect(result).toContain('line one\nline two\nline three');
 });
 
 // ── Test 6: throws on commit count mismatch ──────────────────────────────────
@@ -233,10 +247,7 @@ test('throws when stream commit count does not match commits array length', () =
     },
   ];
 
-  assert.throws(
-    () => patchFastExportStream(stream, commits),
-    /commit count mismatch/i,
-  );
+  expect(() => patchFastExportStream(stream, commits)).toThrow(/commit count mismatch/i);
 });
 
 // ── Test 7: commit message containing "commit refs/heads" is not miscounted ──
@@ -261,5 +272,5 @@ test('does not miscount "commit " lines inside commit messages or blob data', ()
 
   // Should NOT throw — there is 1 real commit, not 3
   const result = patchFastExportStream(stream, commits);
-  assert.ok(result.includes('docs: add plan'));
+  expect(result).toContain('docs: add plan');
 });

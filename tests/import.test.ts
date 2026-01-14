@@ -1,6 +1,6 @@
-import { describe, it, before, after } from 'node:test';
-import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { describe, it, beforeAll, afterAll } from 'vitest';
+import { expect } from 'vitest';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
@@ -20,18 +20,18 @@ function createTestRepo() {
 }
 
 describe('importHistory', () => {
-  let origCwd;
-  let repoDir;
-  let tmpDir;
+  let origCwd: string;
+  let repoDir: string;
+  let tmpDir: string;
 
-  before(() => {
+  beforeAll(() => {
     origCwd = process.cwd();
     repoDir = createTestRepo();
     tmpDir = mkdtempSync(join(tmpdir(), 'githe-json-'));
     process.chdir(repoDir);
   });
 
-  after(() => {
+  afterAll(() => {
     process.chdir(origCwd);
     rmSync(repoDir, { recursive: true, force: true });
     rmSync(tmpDir, { recursive: true, force: true });
@@ -48,7 +48,7 @@ describe('importHistory', () => {
     await importHistory(jsonFile, { noBackup: true });
 
     const log = execSync('git log --format="%s" --reverse', { encoding: 'utf-8' }).trim();
-    assert.equal(log, 'modified first\nmodified second');
+    expect(log).toBe('modified first\nmodified second');
   });
 
   it('rewrites author info from modified JSON', async () => {
@@ -62,7 +62,7 @@ describe('importHistory', () => {
     await importHistory(jsonFile, { noBackup: true });
 
     const log = execSync('git log --format="%an <%ae>" --reverse', { encoding: 'utf-8' }).trim().split('\n');
-    assert.equal(log[0], 'NewAuthor <new@author.com>');
+    expect(log[0]).toBe('NewAuthor <new@author.com>');
   });
 
   it('creates backup branch by default', async () => {
@@ -74,7 +74,7 @@ describe('importHistory', () => {
     await importHistory(jsonFile, {});
 
     const branches = execSync('git branch', { encoding: 'utf-8' });
-    assert.ok(branches.includes('githe-backup-'));
+    expect(branches).toContain('githe-backup-');
   });
 
   it('rejects dirty working tree', async () => {
@@ -82,9 +82,8 @@ describe('importHistory', () => {
     const jsonFile = join(tmpDir, 'history.json');
     writeFileSync(jsonFile, '{}');
 
-    await assert.rejects(() => importHistory(jsonFile, {}), /clean|commit|stash/i);
+    await expect(importHistory(jsonFile, {})).rejects.toThrow(/clean|commit|stash/i);
 
-    const { unlinkSync } = await import('node:fs');
     unlinkSync(join(repoDir, 'dirty.txt'));
   });
 
@@ -98,6 +97,6 @@ describe('importHistory', () => {
     await importHistory(jsonFile, { noBackup: true });
 
     const content = readFileSync(join(repoDir, 'file.txt'), 'utf-8');
-    assert.equal(content, 'hello world');
+    expect(content).toBe('hello world');
   });
 });
