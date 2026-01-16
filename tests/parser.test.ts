@@ -215,3 +215,96 @@ test('resolves mark-to-oid correctly when reset and blob blocks are interspersed
   // second commit's parent resolves to commit :1's oid
   expect(commits[1].parents).toEqual(['1111111111111111111111111111111111111111']);
 });
+
+// ── Test 8: negative timezone offset in gitDateToHuman ───────────────────────
+
+test('converts negative timezone offset correctly', () => {
+  const stream = [
+    'commit refs/heads/master',
+    'mark :1',
+    'original-oid 1111111111111111111111111111111111111111',
+    'author A <a@a.com> 1000000000 -0500',
+    'committer A <a@a.com> 1000000000 -0500',
+    dataBlock('neg tz commit'),
+  ].join('\n');
+
+  const { commits } = parseFastExport(stream);
+
+  expect(commits[0].author!.date).toContain('-0500');
+  expect(commits[0].author!.date).toBe('2001-09-08 20:46:40 -0500');
+});
+
+// ── Test 9: tag blocks with data stanzas ─────────────────────────────────────
+
+test('skips tag blocks with data stanzas', () => {
+  const tagMsg = 'Release v1.0';
+  const tagMsgBytes = Buffer.byteLength(tagMsg, 'utf8');
+  const stream = [
+    'commit refs/heads/master',
+    'mark :1',
+    'original-oid 1111111111111111111111111111111111111111',
+    'author A <a@a.com> 1000000000 +0000',
+    'committer A <a@a.com> 1000000000 +0000',
+    dataBlock('root commit'),
+    `tag v1.0`,
+    'from :1',
+    'tagger Alice <alice@example.com> 1000000001 +0000',
+    `data ${tagMsgBytes}`,
+    tagMsg,
+    'commit refs/heads/master',
+    'mark :2',
+    'original-oid 2222222222222222222222222222222222222222',
+    'author B <b@b.com> 1000000002 +0000',
+    'committer B <b@b.com> 1000000002 +0000',
+    dataBlock('second commit'),
+    'from :1',
+  ].join('\n');
+
+  const { commits } = parseFastExport(stream);
+
+  expect(commits.length).toBe(2);
+  expect(commits[0].message).toBe('root commit');
+  expect(commits[1].message).toBe('second commit');
+});
+
+// ── Test 9: "done" keyword terminates the stream ─────────────────────────────
+
+test('handles "done" keyword at the end of the stream', () => {
+  const stream = [
+    'commit refs/heads/master',
+    'mark :1',
+    'original-oid 1111111111111111111111111111111111111111',
+    'author A <a@a.com> 1000000000 +0000',
+    'committer A <a@a.com> 1000000000 +0000',
+    dataBlock('only commit'),
+    'done',
+  ].join('\n');
+
+  const { commits } = parseFastExport(stream);
+
+  expect(commits.length).toBe(1);
+  expect(commits[0].message).toBe('only commit');
+});
+
+// ── Test 10: blob with no data stanza followed by commit ─────────────────────
+
+test('handles blob block interrupted by a top-level keyword before data', () => {
+  // A blob block that only has a mark line (no data stanza) — the inner loop
+  // should break on seeing the next "commit " line
+  const stream = [
+    'blob',
+    'mark :1',
+    // No data stanza — next line is a commit which should break the blob loop
+    'commit refs/heads/master',
+    'mark :2',
+    'original-oid 1111111111111111111111111111111111111111',
+    'author A <a@a.com> 1000000000 +0000',
+    'committer A <a@a.com> 1000000000 +0000',
+    dataBlock('commit after incomplete blob'),
+  ].join('\n');
+
+  const { commits } = parseFastExport(stream);
+
+  expect(commits.length).toBe(1);
+  expect(commits[0].message).toBe('commit after incomplete blob');
+});

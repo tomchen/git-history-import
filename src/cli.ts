@@ -62,7 +62,3 @@ export async function main(argv: string[]): Promise<void> {
   }
 }
 
-main(process.argv.slice(2)).catch(err => {
-  console.error(`Error: ${(err as Error).message}`);
-  process.exit(1);
-});

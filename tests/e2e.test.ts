@@ -11,6 +11,23 @@ function run(cmd: string, opts: Record<string, unknown> = {}) {
   return execSync(`node ${CLI} ${cmd}`, { encoding: 'utf-8', ...opts });
 }
 
+function runRaw(args: string[], opts: Record<string, unknown> = {}) {
+  try {
+    return {
+      stdout: execSync(`node ${CLI} ${args.join(' ')}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], ...opts }),
+      stderr: '',
+      code: 0,
+    };
+  } catch (e: unknown) {
+    const err = e as { stdout?: string; stderr?: string; status?: number };
+    return {
+      stdout: err.stdout ?? '',
+      stderr: err.stderr ?? '',
+      code: err.status ?? 1,
+    };
+  }
+}
+
 function createTestRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'githe-e2e-'));
   execSync('git init', { cwd: dir });
@@ -81,5 +98,76 @@ describe('githe e2e', () => {
     const output = run('--help');
     expect(output).toContain('githe export');
     expect(output).toContain('githe import');
+  });
+
+  it('shows usage with -h', () => {
+    const result = runRaw(['-h']);
+    expect(result.stdout).toContain('githe export');
+    expect(result.code).toBe(0);
+  });
+
+  it('shows usage with no arguments', () => {
+    const result = runRaw([]);
+    expect(result.stdout).toContain('githe export');
+    expect(result.code).toBe(0);
+  });
+
+  it('exports and writes to stdout when no -o flag', () => {
+    const result = runRaw(['export']);
+    expect(result.code).toBe(0);
+    const data = JSON.parse(result.stdout);
+    expect(data.version).toBe(1);
+    expect(Array.isArray(data.commits)).toBe(true);
+  });
+
+  it('exports to file with -o flag', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'githe-e2e-cli-'));
+    const jsonFile = join(tmpDir, 'out.json');
+    const result = runRaw(['export', '-o', jsonFile]);
+    expect(result.code).toBe(0);
+    const data = JSON.parse(readFileSync(jsonFile, 'utf-8'));
+    expect(data.version).toBe(1);
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('imports from file with --no-backup', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'githe-e2e-cli-'));
+    const jsonFile = join(tmpDir, 'history.json');
+    run(`export -o ${jsonFile}`);
+    const data = JSON.parse(readFileSync(jsonFile, 'utf-8'));
+    data.commits[0].message = 'cli-imported commit';
+    writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+
+    const result = runRaw(['import', jsonFile, '--no-backup']);
+    expect(result.code).toBe(0);
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('errors on unknown command', () => {
+    const result = runRaw(['unknowncmd']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Unknown command');
+  });
+
+  it('errors on unknown option', () => {
+    const result = runRaw(['export', '--bogus-flag']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Unknown option');
+  });
+
+  it('errors on import with missing file path', () => {
+    const result = runRaw(['import']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('import requires a JSON file path');
+  });
+
+  it('error catch handler prints message and exits 1', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'githe-e2e-cli-'));
+    const badJson = join(tmpDir, 'bad.json');
+    writeFileSync(badJson, 'not json');
+    const result = runRaw(['import', badJson, '--no-backup']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toMatch(/error:/i);
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 });

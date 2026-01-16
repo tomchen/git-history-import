@@ -87,6 +87,20 @@ describe('importHistory', () => {
     unlinkSync(join(repoDir, 'dirty.txt'));
   });
 
+  it('rejects invalid JSON', async () => {
+    const jsonFile = join(tmpDir, 'bad.json');
+    writeFileSync(jsonFile, 'not valid json {{{');
+
+    await expect(importHistory(jsonFile, {})).rejects.toThrow(/invalid json/i);
+  });
+
+  it('rejects JSON without commits array', async () => {
+    const jsonFile = join(tmpDir, 'nocommits.json');
+    writeFileSync(jsonFile, JSON.stringify({ version: 1 }));
+
+    await expect(importHistory(jsonFile, {})).rejects.toThrow(/missing "commits" array/i);
+  });
+
   it('preserves file content after rewrite', async () => {
     const jsonStr = await exportHistory({});
     const data = JSON.parse(jsonStr);
@@ -98,5 +112,28 @@ describe('importHistory', () => {
 
     const content = readFileSync(join(repoDir, 'file.txt'), 'utf-8');
     expect(content).toBe('hello world');
+  });
+});
+
+describe('importHistory outside git repo', () => {
+  let origCwd: string;
+  let noGitDir: string;
+
+  beforeAll(() => {
+    origCwd = process.cwd();
+    noGitDir = mkdtempSync(join(tmpdir(), 'githe-nogit-'));
+    process.chdir(noGitDir);
+  });
+
+  afterAll(() => {
+    process.chdir(origCwd);
+    rmSync(noGitDir, { recursive: true, force: true });
+  });
+
+  it('rejects import outside a git repository', async () => {
+    const jsonFile = join(noGitDir, 'dummy.json');
+    writeFileSync(jsonFile, JSON.stringify({ commits: [] }));
+
+    await expect(importHistory(jsonFile, {})).rejects.toThrow(/not a git repository/i);
   });
 });

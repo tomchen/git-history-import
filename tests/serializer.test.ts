@@ -274,3 +274,192 @@ test('does not miscount "commit " lines inside commit messages or blob data', ()
   const result = patchFastExportStream(stream, commits);
   expect(result).toContain('docs: add plan');
 });
+
+// ── Test 8: unknown commit header lines are passed through verbatim ───────────
+
+test('passes through unknown commit header lines (encoding, gpgsig, etc.)', () => {
+  // Build a stream with an "encoding utf-8" line before the data stanza
+  const lines = [
+    'commit refs/heads/master',
+    'mark :1',
+    'original-oid aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    'author Alice <alice@example.com> 2023-11-14 22:13:20 +0000',
+    'committer Bob <bob@example.com> 2023-11-14 22:13:20 +0000',
+    'encoding utf-8',
+    dataBlock('encoded commit'),
+  ];
+  const stream = lines.join('\n');
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'encoded commit',
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  expect(result).toContain('encoding utf-8');
+  expect(result).toContain('encoded commit');
+});
+
+// ── Test 9: tag blocks with data are passed through ──────────────────────────
+
+test('passes through tag blocks with data stanzas', () => {
+  const commit = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'tagged commit',
+  });
+
+  const tagMsg = 'Release v1.0';
+  const tagBlock = [
+    'tag v1.0',
+    'from :1',
+    'tagger Alice <alice@example.com> 2023-11-14 22:13:20 +0000',
+    dataBlock(tagMsg),
+  ].join('\n');
+
+  const stream = commit + '\n' + tagBlock;
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'tagged commit',
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  expect(result).toContain('tag v1.0');
+  expect(result).toContain('from :1');
+  expect(result).toContain('tagger Alice');
+  expect(result).toContain(tagMsg);
+});
+
+// ── Test 10: done keyword is passed through ────────────────────────────────
+
+test('passes through "done" keyword', () => {
+  const stream = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'last commit',
+  }) + '\ndone';
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'last commit',
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  expect(result).toContain('done');
+});
+
+// ── Test 11: humanDateToGit passthrough for raw git dates ─────────────────
+
+test('passes through raw git date format unchanged', () => {
+  // Use a raw git date (digits + tz offset) as the date in author/committer
+  const rawGitDate = '1700000000 +0000';
+  const authorWithRawDate = { name: 'Alice', email: 'alice@example.com', date: rawGitDate };
+  const stream = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'raw date commit',
+  });
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'raw date commit',
+    author: authorWithRawDate,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  // The raw git date should appear verbatim in the output
+  expect(result).toContain(`author Alice <alice@example.com> ${rawGitDate}`);
+});
+
+// ── Test 12: humanDateToGit throws on unrecognized date format ────────────
+
+test('throws on unrecognized date format in author/committer', () => {
+  const badDate = 'not-a-date';
+  const authorWithBadDate = { name: 'Alice', email: 'alice@example.com', date: badDate };
+  const stream = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'bad date commit',
+  });
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'bad date commit',
+    author: authorWithBadDate,
+    committer: BOB,
+    parents: [],
+  }];
+
+  expect(() => patchFastExportStream(stream, commits)).toThrow(/unrecognized date format/i);
+});
+
+// ── Test 13: blob block terminated by "done" without data ─────────────────
+
+test('handles blob terminated by "done" keyword without a data stanza', () => {
+  const commit = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'before blob',
+  });
+  // Blob with only a mark line, terminated by "done"
+  const stream = commit + '\nblob\nmark :2\ndone';
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'before blob',
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  expect(result).toContain('blob');
+  expect(result).toContain('done');
+});
+
+// ── Test 14: unrecognised top-level line is passed through ─────────────────
+
+test('passes through unrecognised top-level lines verbatim', () => {
+  // A "progress" line is a valid fast-export directive that we don't handle specially
+  const commit = makeCommit({
+    mark: 1,
+    oid: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    author: ALICE,
+    committer: BOB,
+    msg: 'test commit',
+  });
+  const stream = 'progress some status message\n' + commit;
+
+  const commits = [{
+    original_hash: 'aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111',
+    message: 'test commit',
+    author: ALICE,
+    committer: BOB,
+    parents: [],
+  }];
+
+  const result = patchFastExportStream(stream, commits);
+  expect(result).toContain('progress some status message');
+});
