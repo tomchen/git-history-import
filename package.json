@@ -1,47 +1,38 @@
 {
-  "name": "githe",
-  "version": "0.1.0",
-  "description": "Export git history to JSON, edit it, import it back",
-  "type": "module",
-  "bin": {
-    "githe": "./bin/githe.js"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "bin"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "git",
-    "history",
-    "export",
-    "import",
-    "json"
-  ],
-  "license": "MIT",
-  "devDependencies": {
-    "@biomejs/biome": "^1",
-    "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^3",
-    "typescript": "^5",
-    "vitest": "^3"
-  }
+	"name": "githe",
+	"version": "0.1.0",
+	"description": "Export git history to JSON, edit it, import it back",
+	"type": "module",
+	"bin": {
+		"githe": "./bin/githe.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": ["dist", "bin"],
+	"engines": {
+		"node": ">=20"
+	},
+	"scripts": {
+		"build": "tsc",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"prepublishOnly": "npm run build"
+	},
+	"keywords": ["git", "history", "export", "import", "json"],
+	"license": "MIT",
+	"devDependencies": {
+		"@biomejs/biome": "^1",
+		"@types/node": "^25.5.0",
+		"@vitest/coverage-v8": "^3",
+		"typescript": "^5",
+		"vitest": "^3"
+	}
 }

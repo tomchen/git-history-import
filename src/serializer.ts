@@ -9,201 +9,204 @@ import type { Commit } from "./parser.js";
  * lines, file operations, marks, original-oid, from, merge, etc. — is passed
  * through verbatim.
  */
-export function patchFastExportStream(stream: string, commits: Commit[]): string {
-  // ── count commits in stream ──────────────────────────────────────────────
-  const streamCommitCount = countCommits(stream);
-  if (streamCommitCount !== commits.length) {
-    throw new Error(
-      `Commit count mismatch: stream has ${streamCommitCount} commit(s) but JSON has ${commits.length}`
-    );
-  }
+export function patchFastExportStream(
+	stream: string,
+	commits: Commit[],
+): string {
+	// ── count commits in stream ──────────────────────────────────────────────
+	const streamCommitCount = countCommits(stream);
+	if (streamCommitCount !== commits.length) {
+		throw new Error(
+			`Commit count mismatch: stream has ${streamCommitCount} commit(s) but JSON has ${commits.length}`,
+		);
+	}
 
-  // ── work on raw bytes for accurate data-N handling ───────────────────────
-  const buf = Buffer.from(stream, 'utf8');
-  let pos = 0;
-  let commitIndex = 0;
-  const outParts: string[] = [];
+	// ── work on raw bytes for accurate data-N handling ───────────────────────
+	const buf = Buffer.from(stream, "utf8");
+	let pos = 0;
+	let commitIndex = 0;
+	const outParts: string[] = [];
 
-  /** Read one text line (up to and including \n). Returns the line without \n. */
-  function readLine(): string {
-    const start = pos;
-    while (pos < buf.length && buf[pos] !== 0x0a /* '\n' */) pos++;
-    const line = buf.toString('utf8', start, pos);
-    if (pos < buf.length) pos++; // consume '\n'
-    return line;
-  }
+	/** Read one text line (up to and including \n). Returns the line without \n. */
+	function readLine(): string {
+		const start = pos;
+		while (pos < buf.length && buf[pos] !== 0x0a /* '\n' */) pos++;
+		const line = buf.toString("utf8", start, pos);
+		if (pos < buf.length) pos++; // consume '\n'
+		return line;
+	}
 
-  /** Peek at the current line without advancing pos. */
-  function peekLine(): string {
-    const saved = pos;
-    const line = readLine();
-    pos = saved;
-    return line;
-  }
+	/** Peek at the current line without advancing pos. */
+	function peekLine(): string {
+		const saved = pos;
+		const line = readLine();
+		pos = saved;
+		return line;
+	}
 
-  /** Append a text string (with trailing newline) to output. */
-  function emit(text: string): void {
-    outParts.push(text + '\n');
-  }
+	/** Append a text string (with trailing newline) to output. */
+	function emit(text: string): void {
+		outParts.push(`${text}\n`);
+	}
 
-  /** Emit a line from buf verbatim (the line text without the newline, then add newline). */
-  function emitLine(line: string): void {
-    outParts.push(line + '\n');
-  }
+	/** Emit a line from buf verbatim (the line text without the newline, then add newline). */
+	function emitLine(line: string): void {
+		outParts.push(`${line}\n`);
+	}
 
-  /**
-   * Emit N raw data bytes from buf (no trailing newline added — the bytes
-   * themselves may contain newlines), then consume the one trailing newline
-   * that git fast-export places after the data bytes.
-   */
-  function emitDataBytes(n: number): void {
-    outParts.push(buf.toString('utf8', pos, pos + n));
-    pos += n;
-    // consume the trailing newline (if present)
-    if (pos < buf.length && buf[pos] === 0x0a) {
-      outParts.push('\n');
-      pos++;
-    }
-  }
+	/**
+	 * Emit N raw data bytes from buf (no trailing newline added — the bytes
+	 * themselves may contain newlines), then consume the one trailing newline
+	 * that git fast-export places after the data bytes.
+	 */
+	function emitDataBytes(n: number): void {
+		outParts.push(buf.toString("utf8", pos, pos + n));
+		pos += n;
+		// consume the trailing newline (if present)
+		if (pos < buf.length && buf[pos] === 0x0a) {
+			outParts.push("\n");
+			pos++;
+		}
+	}
 
-  /** Skip N data bytes + trailing newline (used to discard old message). */
-  function skipDataBytes(n: number): void {
-    pos += n;
-    if (pos < buf.length && buf[pos] === 0x0a) pos++;
-  }
+	/** Skip N data bytes + trailing newline (used to discard old message). */
+	function skipDataBytes(n: number): void {
+		pos += n;
+		if (pos < buf.length && buf[pos] === 0x0a) pos++;
+	}
 
-  while (pos < buf.length) {
-    const line = readLine();
+	while (pos < buf.length) {
+		const line = readLine();
 
-    if (line === '') {
-      emitLine('');
-      continue;
-    }
+		if (line === "") {
+			emitLine("");
+			continue;
+		}
 
-    // ── commit block ────────────────────────────────────────────────────────
-    if (line.startsWith('commit ')) {
-      const commit = commits[commitIndex++];
-      emitLine(line); // e.g. "commit refs/heads/master"
+		// ── commit block ────────────────────────────────────────────────────────
+		if (line.startsWith("commit ")) {
+			const commit = commits[commitIndex++];
+			emitLine(line); // e.g. "commit refs/heads/master"
 
-      // Read and patch commit headers until we hit the data stanza
-      let donePatchingHeaders = false;
-      while (!donePatchingHeaders && pos < buf.length) {
-        const hdr = readLine();
+			// Read and patch commit headers until we hit the data stanza
+			let donePatchingHeaders = false;
+			while (!donePatchingHeaders && pos < buf.length) {
+				const hdr = readLine();
 
-        if (hdr.startsWith('mark ')) {
-          emitLine(hdr);
-        } else if (hdr.startsWith('original-oid ')) {
-          emitLine(hdr);
-        } else if (hdr.startsWith('author ')) {
-          // Replace with patched author
-          const { name, email, date } = commit.author!;
-          emit(`author ${name} <${email}> ${humanDateToGit(date)}`);
-        } else if (hdr.startsWith('committer ')) {
-          // Replace with patched committer
-          const { name, email, date } = commit.committer!;
-          emit(`committer ${name} <${email}> ${humanDateToGit(date)}`);
-        } else if (hdr.startsWith('data ')) {
-          // Replace with patched message
-          const oldLen = parseInt(hdr.slice(5), 10);
-          const newMsg = commit.message;
-          // git fast-export always appends a newline after the message bytes;
-          // we mirror that: the data block is the message + '\n'
-          const newLen = Buffer.byteLength(newMsg + '\n');
-          emit(`data ${newLen}`);
-          outParts.push(newMsg + '\n');
-          // Skip past the old message bytes (+ its trailing newline)
-          skipDataBytes(oldLen);
-          donePatchingHeaders = true;
-        } else {
-          // encoding, gpgsig, etc. — pass through
-          emitLine(hdr);
-        }
-      }
+				if (hdr.startsWith("mark ")) {
+					emitLine(hdr);
+				} else if (hdr.startsWith("original-oid ")) {
+					emitLine(hdr);
+				} else if (hdr.startsWith("author ")) {
+					// Replace with patched author
+					const { name, email, date } = commit.author!;
+					emit(`author ${name} <${email}> ${humanDateToGit(date)}`);
+				} else if (hdr.startsWith("committer ")) {
+					// Replace with patched committer
+					const { name, email, date } = commit.committer!;
+					emit(`committer ${name} <${email}> ${humanDateToGit(date)}`);
+				} else if (hdr.startsWith("data ")) {
+					// Replace with patched message
+					const oldLen = Number.parseInt(hdr.slice(5), 10);
+					const newMsg = commit.message;
+					// git fast-export always appends a newline after the message bytes;
+					// we mirror that: the data block is the message + '\n'
+					const newLen = Buffer.byteLength(`${newMsg}\n`);
+					emit(`data ${newLen}`);
+					outParts.push(`${newMsg}\n`);
+					// Skip past the old message bytes (+ its trailing newline)
+					skipDataBytes(oldLen);
+					donePatchingHeaders = true;
+				} else {
+					// encoding, gpgsig, etc. — pass through
+					emitLine(hdr);
+				}
+			}
 
-      // After the data stanza: pass through from/merge/file-op lines until
-      // the next top-level keyword or blank line.
-      while (pos < buf.length) {
-        const next = peekLine();
-        if (
-          next === '' ||
-          next.startsWith('commit ') ||
-          next.startsWith('blob') ||
-          next.startsWith('reset ') ||
-          next.startsWith('tag ') ||
-          next === 'done'
-        ) {
-          break;
-        }
-        const opLine = readLine();
-        emitLine(opLine);
-      }
+			// After the data stanza: pass through from/merge/file-op lines until
+			// the next top-level keyword or blank line.
+			while (pos < buf.length) {
+				const next = peekLine();
+				if (
+					next === "" ||
+					next.startsWith("commit ") ||
+					next.startsWith("blob") ||
+					next.startsWith("reset ") ||
+					next.startsWith("tag ") ||
+					next === "done"
+				) {
+					break;
+				}
+				const opLine = readLine();
+				emitLine(opLine);
+			}
 
-      continue;
-    }
+			continue;
+		}
 
-    // ── blob block ──────────────────────────────────────────────────────────
-    if (line === 'blob') {
-      emitLine(line);
-      while (pos < buf.length) {
-        const next = peekLine();
-        if (
-          next === '' ||
-          next.startsWith('commit ') ||
-          next.startsWith('blob') ||
-          next.startsWith('reset ') ||
-          next.startsWith('tag ') ||
-          next === 'done'
-        ) {
-          break;
-        }
-        const blobLine = readLine();
-        if (blobLine.startsWith('data ')) {
-          const n = parseInt(blobLine.slice(5), 10);
-          emitLine(blobLine); // "data N"
-          emitDataBytes(n);   // raw data bytes + trailing newline
-          break;
-        }
-        emitLine(blobLine); // mark, original-oid
-      }
-      continue;
-    }
+		// ── blob block ──────────────────────────────────────────────────────────
+		if (line === "blob") {
+			emitLine(line);
+			while (pos < buf.length) {
+				const next = peekLine();
+				if (
+					next === "" ||
+					next.startsWith("commit ") ||
+					next.startsWith("blob") ||
+					next.startsWith("reset ") ||
+					next.startsWith("tag ") ||
+					next === "done"
+				) {
+					break;
+				}
+				const blobLine = readLine();
+				if (blobLine.startsWith("data ")) {
+					const n = Number.parseInt(blobLine.slice(5), 10);
+					emitLine(blobLine); // "data N"
+					emitDataBytes(n); // raw data bytes + trailing newline
+					break;
+				}
+				emitLine(blobLine); // mark, original-oid
+			}
+			continue;
+		}
 
-    // ── reset / tag / done ──────────────────────────────────────────────────
-    if (
-      line.startsWith('reset ') ||
-      line.startsWith('tag ') ||
-      line === 'done'
-    ) {
-      emitLine(line);
-      while (pos < buf.length) {
-        const next = peekLine();
-        if (
-          next === '' ||
-          next.startsWith('commit ') ||
-          next.startsWith('blob') ||
-          next.startsWith('reset ') ||
-          next.startsWith('tag ') ||
-          next === 'done'
-        ) {
-          break;
-        }
-        const tLine = readLine();
-        if (tLine.startsWith('data ')) {
-          const n = parseInt(tLine.slice(5), 10);
-          emitLine(tLine);
-          emitDataBytes(n);
-          break;
-        }
-        emitLine(tLine);
-      }
-      continue;
-    }
+		// ── reset / tag / done ──────────────────────────────────────────────────
+		if (
+			line.startsWith("reset ") ||
+			line.startsWith("tag ") ||
+			line === "done"
+		) {
+			emitLine(line);
+			while (pos < buf.length) {
+				const next = peekLine();
+				if (
+					next === "" ||
+					next.startsWith("commit ") ||
+					next.startsWith("blob") ||
+					next.startsWith("reset ") ||
+					next.startsWith("tag ") ||
+					next === "done"
+				) {
+					break;
+				}
+				const tLine = readLine();
+				if (tLine.startsWith("data ")) {
+					const n = Number.parseInt(tLine.slice(5), 10);
+					emitLine(tLine);
+					emitDataBytes(n);
+					break;
+				}
+				emitLine(tLine);
+			}
+			continue;
+		}
 
-    // ── any other top-level line — pass through ─────────────────────────────
-    emitLine(line);
-  }
+		// ── any other top-level line — pass through ─────────────────────────────
+		emitLine(line);
+	}
 
-  return outParts.join('');
+	return outParts.join("");
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -214,23 +217,25 @@ export function patchFastExportStream(stream: string, commits: Commit[]): string
  * Also accepts raw git format "1774729976 +0100" as passthrough.
  */
 function humanDateToGit(date: string): string {
-  // If it already looks like a raw git date (starts with digits, no dashes), passthrough
-  if (/^\d+ [+-]\d{4}$/.test(date)) return date;
+	// If it already looks like a raw git date (starts with digits, no dashes), passthrough
+	if (/^\d+ [+-]\d{4}$/.test(date)) return date;
 
-  // Parse "YYYY-MM-DD HH:MM:SS +ZZZZ"
-  const match = date.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$/);
-  if (!match) throw new Error(`Unrecognized date format: ${date}`);
+	// Parse "YYYY-MM-DD HH:MM:SS +ZZZZ"
+	const match = date.match(
+		/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$/,
+	);
+	if (!match) throw new Error(`Unrecognized date format: ${date}`);
 
-  const [, y, mo, d, h, mi, s, tz] = match;
-  const sign = tz[0] === '+' ? 1 : -1;
-  const tzH = parseInt(tz.slice(1, 3), 10);
-  const tzM = parseInt(tz.slice(3, 5), 10);
-  const offsetMs = sign * (tzH * 60 + tzM) * 60000;
+	const [, y, mo, d, h, mi, s, tz] = match;
+	const sign = tz[0] === "+" ? 1 : -1;
+	const tzH = Number.parseInt(tz.slice(1, 3), 10);
+	const tzM = Number.parseInt(tz.slice(3, 5), 10);
+	const offsetMs = sign * (tzH * 60 + tzM) * 60000;
 
-  // Build UTC date from local components
-  const utcMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, +s) - offsetMs;
-  const timestamp = Math.floor(utcMs / 1000);
-  return `${timestamp} ${tz}`;
+	// Build UTC date from local components
+	const utcMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, +s) - offsetMs;
+	const timestamp = Math.floor(utcMs / 1000);
+	return `${timestamp} ${tz}`;
 }
 
 /**
@@ -238,27 +243,27 @@ function humanDateToGit(date: string): string {
  * lines that start with "commit ".
  */
 function countCommits(stream: string): number {
-  const buf = Buffer.from(stream, 'utf8');
-  let pos = 0;
-  let count = 0;
+	const buf = Buffer.from(stream, "utf8");
+	let pos = 0;
+	let count = 0;
 
-  function readLine(): string {
-    const start = pos;
-    while (pos < buf.length && buf[pos] !== 0x0a) pos++;
-    const line = buf.toString('utf8', start, pos);
-    if (pos < buf.length) pos++;
-    return line;
-  }
+	function readLine(): string {
+		const start = pos;
+		while (pos < buf.length && buf[pos] !== 0x0a) pos++;
+		const line = buf.toString("utf8", start, pos);
+		if (pos < buf.length) pos++;
+		return line;
+	}
 
-  while (pos < buf.length) {
-    const line = readLine();
-    if (line.startsWith('commit ')) count++;
-    // Skip past data blocks so their content isn't mistaken for commands
-    if (line.startsWith('data ')) {
-      const n = parseInt(line.slice(5), 10);
-      pos += n;
-      if (pos < buf.length && buf[pos] === 0x0a) pos++;
-    }
-  }
-  return count;
+	while (pos < buf.length) {
+		const line = readLine();
+		if (line.startsWith("commit ")) count++;
+		// Skip past data blocks so their content isn't mistaken for commands
+		if (line.startsWith("data ")) {
+			const n = Number.parseInt(line.slice(5), 10);
+			pos += n;
+			if (pos < buf.length && buf[pos] === 0x0a) pos++;
+		}
+	}
+	return count;
 }
