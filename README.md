@@ -118,9 +118,29 @@ git push --force
 
 **Warning: this is irreversible.** Once garbage collected, the old commits cannot be recovered. If the repository has been pushed to a remote, any collaborator who already pulled the old history will still have it locally. They must delete their local clone and re-clone to avoid accidentally reintroducing old commits.
 
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+
+# Lint and format
+npm run lint
+npm run lint:fix
+```
+
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 20
 - git
 
 ## License
