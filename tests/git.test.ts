@@ -2,14 +2,8 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, it } from "vitest";
-import { expect } from "vitest";
-import {
-	getCommitHash,
-	getCurrentBranch,
-	isGitRepo,
-	isWorkingTreeClean,
-} from "../src/git.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getCommitHash, isGitRepo, isWorkingTreeClean } from "../src/git.js";
 
 function createTestRepo() {
 	const dir = mkdtempSync(join(tmpdir(), "githe-git-"));

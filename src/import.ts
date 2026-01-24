@@ -8,7 +8,6 @@ import {
 	isGitRepo,
 	isWorkingTreeClean,
 } from "./git.js";
-import { parseFastExport } from "./parser.js";
 import { patchFastExportStream } from "./serializer.js";
 
 export interface ImportOptions {

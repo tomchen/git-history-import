@@ -8,8 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, it } from "vitest";
-import { expect } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { exportHistory } from "../src/export.js";
 import { importHistory } from "../src/import.js";
 

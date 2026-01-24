@@ -1,5 +1,4 @@
-import { test } from "vitest";
-import { expect } from "vitest";
+import { expect, test } from "vitest";
 import { parseFastExport } from "../src/parser.js";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
