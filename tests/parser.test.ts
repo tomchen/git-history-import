@@ -25,7 +25,7 @@ test("parses a single commit with no files", () => {
 		dataBlock("initial commit"),
 	].join("\n");
 
-	const { commits, raw, markToOid } = parseFastExport(stream);
+	const { commits, raw, markToOid } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(1);
 	const c = commits[0];
@@ -41,7 +41,7 @@ test("parses a single commit with no files", () => {
 	expect(c.committer.email).toBe("bob@example.com");
 	expect(c.committer.date).toBe("2023-11-14 23:13:21 +0100");
 
-	expect(raw).toBe(stream);
+	expect(raw).toEqual(Buffer.from(stream));
 	expect(markToOid).toBeInstanceOf(Map);
 	expect(markToOid.get(1)).toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
@@ -65,7 +65,7 @@ test("parses multiple commits with parent relationships resolved via mark-to-oid
 		"from :1",
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(2);
 	expect(commits[0].parents).toEqual([]);
@@ -103,7 +103,7 @@ test("handles blob blocks between commits without corrupting output", () => {
 		"from :2",
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(2);
 	expect(commits[0].original_hash).toBe(
@@ -145,7 +145,7 @@ test("parses merge commits with multiple parents (from + merge)", () => {
 		"merge :2",
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(3);
 	const merge = commits[2];
@@ -162,8 +162,8 @@ test("result.raw equals the input stream exactly", () => {
 	const stream =
 		"commit refs/heads/master\nmark :1\noriginal-oid abcd1234abcd1234abcd1234abcd1234abcd1234\nauthor Z <z@z.com> 1000000000 +0000\ncommitter Z <z@z.com> 1000000000 +0000\ndata 3\nhi\n\n";
 
-	const { raw } = parseFastExport(stream);
-	expect(raw).toBe(stream);
+	const { raw } = parseFastExport(Buffer.from(stream));
+	expect(raw).toEqual(Buffer.from(stream));
 });
 
 // ── Test 6: multiline commit messages ────────────────────────────────────────
@@ -179,7 +179,7 @@ test("parses multiline commit messages using byte-counting", () => {
 		dataBlock(msg),
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(1);
 	expect(commits[0].message).toBe(msg);
@@ -212,7 +212,7 @@ test("resolves mark-to-oid correctly when reset and blob blocks are interspersed
 		"from :1",
 	].join("\n");
 
-	const { commits, markToOid } = parseFastExport(stream);
+	const { commits, markToOid } = parseFastExport(Buffer.from(stream));
 
 	// mark :2 is a blob — should NOT appear in markToOid as a commit oid
 	// but mark :1 and :3 should map to their commit oids
@@ -238,7 +238,7 @@ test("converts negative timezone offset correctly", () => {
 		dataBlock("neg tz commit"),
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits[0].author?.date).toContain("-0500");
 	expect(commits[0].author?.date).toBe("2001-09-08 20:46:40 -0500");
@@ -270,7 +270,7 @@ test("skips tag blocks with data stanzas", () => {
 		"from :1",
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(2);
 	expect(commits[0].message).toBe("root commit");
@@ -290,7 +290,7 @@ test('handles "done" keyword at the end of the stream', () => {
 		"done",
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(1);
 	expect(commits[0].message).toBe("only commit");
@@ -313,7 +313,7 @@ test("handles blob block interrupted by a top-level keyword before data", () => 
 		dataBlock("commit after incomplete blob"),
 	].join("\n");
 
-	const { commits } = parseFastExport(stream);
+	const { commits } = parseFastExport(Buffer.from(stream));
 
 	expect(commits.length).toBe(1);
 	expect(commits[0].message).toBe("commit after incomplete blob");

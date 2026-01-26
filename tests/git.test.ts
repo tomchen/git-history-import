@@ -3,7 +3,12 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { getCommitHash, isGitRepo, isWorkingTreeClean } from "../src/git.js";
+import {
+	getCommitHash,
+	getCurrentRef,
+	isGitRepo,
+	isWorkingTreeClean,
+} from "../src/git.js";
 
 function createTestRepo() {
 	const dir = mkdtempSync(join(tmpdir(), "githe-git-"));
@@ -47,6 +52,23 @@ describe("git helpers inside a repo", () => {
 		const result = isWorkingTreeClean();
 		rmSync(join(repoDir, "dirty.txt"));
 		expect(result).toBe(false);
+	});
+
+	it("getCurrentRef returns refs/heads/<branch>", () => {
+		const ref = getCurrentRef();
+		expect(ref).toMatch(/^refs\/heads\/.+$/);
+	});
+
+	it("getCurrentRef throws on detached HEAD", () => {
+		// Detach HEAD by checking out a specific commit hash
+		const hash = execSync("git rev-parse HEAD", {
+			encoding: "utf-8",
+			cwd: repoDir,
+		}).trim();
+		execSync(`git checkout --detach ${hash}`, { cwd: repoDir, stdio: "pipe" });
+		expect(() => getCurrentRef()).toThrow(/detached HEAD/i);
+		// Reattach to branch
+		execSync("git checkout -", { cwd: repoDir, stdio: "pipe" });
 	});
 });
 

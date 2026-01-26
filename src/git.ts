@@ -1,8 +1,8 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 export function isGitRepo(): boolean {
 	try {
-		execSync("git rev-parse --git-dir", { stdio: "pipe" });
+		execFileSync("git", ["rev-parse", "--git-dir"], { stdio: "pipe" });
 		return true;
 	} catch {
 		return false;
@@ -11,52 +11,63 @@ export function isGitRepo(): boolean {
 
 export function isWorkingTreeClean(): boolean {
 	try {
-		const status = execSync("git status --porcelain", { encoding: "utf-8" });
+		const status = execFileSync("git", ["status", "--porcelain"], {
+			encoding: "utf-8",
+		});
 		return status.trim() === "";
 	} catch {
 		return false;
 	}
 }
 
-export function gitFastExport(range?: string): string {
-	const rangeArg = range || `refs/heads/${getCurrentBranch()}`;
-	return execSync(`git fast-export ${rangeArg} --show-original-ids`, {
-		encoding: "utf-8",
+export function gitFastExport(ref: string): Buffer {
+	return execFileSync("git", ["fast-export", ref, "--show-original-ids"], {
 		maxBuffer: 100 * 1024 * 1024,
 	});
 }
 
 export function getCurrentBranch(): string {
-	return execSync("git rev-parse --abbrev-ref HEAD", {
+	return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
 		encoding: "utf-8",
 	}).trim();
 }
 
+export function getCurrentRef(): string {
+	const branch = getCurrentBranch();
+	if (branch === "HEAD") {
+		throw new Error(
+			"Cannot operate on detached HEAD. Please checkout a branch first.",
+		);
+	}
+	return `refs/heads/${branch}`;
+}
+
 export function getRepoRoot(): string {
-	return execSync("git rev-parse --show-toplevel", {
+	return execFileSync("git", ["rev-parse", "--show-toplevel"], {
 		encoding: "utf-8",
 	}).trim();
 }
 
 export function getCommitHash(ref: string): string {
-	return execSync(`git rev-parse ${ref}`, { encoding: "utf-8" }).trim();
+	return execFileSync("git", ["rev-parse", ref], {
+		encoding: "utf-8",
+	}).trim();
 }
 
 export function createBackupBranch(): string {
 	const timestamp = Date.now();
 	const branchName = `githe-backup-${timestamp}`;
-	execSync(`git branch ${branchName}`, { stdio: "pipe" });
+	execFileSync("git", ["branch", branchName], { stdio: "pipe" });
 	return branchName;
 }
 
-export function gitFastImport(stream: string): void {
-	execSync("git fast-import --force --quiet", {
+export function gitFastImport(stream: Buffer): void {
+	execFileSync("git", ["fast-import", "--force", "--quiet"], {
 		input: stream,
-		encoding: "utf-8",
 		maxBuffer: 100 * 1024 * 1024,
 	});
 }
 
 export function gitResetHard(ref: string): void {
-	execSync(`git reset --hard ${ref}`, { stdio: "pipe" });
+	execFileSync("git", ["reset", "--hard", ref], { stdio: "pipe" });
 }

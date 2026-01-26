@@ -32,8 +32,8 @@ describe("exportHistory", () => {
 		rmSync(repoDir, { recursive: true, force: true });
 	});
 
-	it("exports commits to JSON object", async () => {
-		const result = await exportHistory({});
+	it("exports commits to JSON object", () => {
+		const result = exportHistory({});
 		const json = JSON.parse(result);
 		expect(json.version).toBe(1);
 		expect(json.commits.length).toBe(2);
@@ -45,17 +45,24 @@ describe("exportHistory", () => {
 		expect(json.exported_at).toBeTruthy();
 	});
 
-	it("exports to file when -o is given", async () => {
+	it("exports to file when -o is given", () => {
 		const outFile = join(repoDir, "out.json");
-		await exportHistory({ output: outFile });
+		exportHistory({ output: outFile });
 		const json = JSON.parse(readFileSync(outFile, "utf-8"));
 		expect(json.commits.length).toBe(2);
 	});
 
-	it("fails outside a git repo", async () => {
+	it("exported JSON contains ref field", () => {
+		const result = exportHistory({});
+		const json = JSON.parse(result);
+		expect(json.ref).toBeTruthy();
+		expect(typeof json.ref).toBe("string");
+	});
+
+	it("fails outside a git repo", () => {
 		const tmpDir = mkdtempSync(join(tmpdir(), "githe-nogit-"));
 		process.chdir(tmpDir);
-		await expect(exportHistory({})).rejects.toThrow(/not a git repository/i);
+		expect(() => exportHistory({})).toThrow(/not a git repository/i);
 		process.chdir(repoDir);
 		rmSync(tmpDir, { recursive: true, force: true });
 	});

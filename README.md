@@ -46,6 +46,7 @@ Each exported file looks like this:
 {
   "version": 1,
   "repo": "/path/to/your/repo",
+  "ref": "refs/heads/main",
   "exported_at": "2024-01-15T10:30:00.000Z",
   "commits": [
     {
@@ -77,7 +78,15 @@ The following fields are rewritten during import:
 - `author.name`, `author.email`, `author.date` — authorship
 - `committer.name`, `committer.email`, `committer.date` — committer identity
 
-The `original_hash` and `parents` fields are exported for reference only and are not used during import. The tree (file contents) is preserved exactly as-is.
+The `original_hash` field is used during import to verify that commits are in the correct order. Do not reorder, add, or remove entries in the `commits` array — the count and order must match the repository's history.
+
+The `parents` field is exported for reference only and is not used during import. The tree (file contents, including binary files) is preserved exactly as-is.
+
+## The `ref` Field
+
+The exported JSON includes a `ref` field recording which ref or range was exported. When importing, githe uses this field to re-export the same ref from the repository. This allows `--range` exports to round-trip correctly.
+
+If you edit the `ref` field or import a JSON that was exported from a different repository state, the commit identity check will reject mismatched commits.
 
 ## Backup and Recovery
 
@@ -117,6 +126,28 @@ git push --force
 ```
 
 **Warning: this is irreversible.** Once garbage collected, the old commits cannot be recovered. If the repository has been pushed to a remote, any collaborator who already pulled the old history will still have it locally. They must delete their local clone and re-clone to avoid accidentally reintroducing old commits.
+
+## Programmatic API
+
+githe can also be used as a library:
+
+```ts
+import { exportHistory, importHistory, parseFastExport, patchFastExportStream } from "githe";
+
+// Export commits as a JSON string
+const json = exportHistory({ range: "HEAD~5..HEAD" });
+
+// Import from a file
+importHistory("history.json", { noBackup: true });
+```
+
+Full TypeScript type definitions are included.
+
+## Limitations
+
+- **Current branch only.** By default, githe exports and imports the current branch. Detached HEAD is not supported.
+- **Commit order is fixed.** The `commits` array must stay in the same order as the repository history. Reordering, adding, or removing commits will cause an error.
+- **Scalability.** The entire fast-export stream is buffered in memory. Very large repositories (hundreds of MB of history) may exceed the 100 MB buffer limit.
 
 ## Development
 

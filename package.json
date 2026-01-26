@@ -36,6 +36,14 @@
 		"import",
 		"json"
 	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/toolsu/githe.git"
+	},
+	"homepage": "https://github.com/toolsu/githe#readme",
+	"bugs": {
+		"url": "https://github.com/toolsu/githe/issues"
+	},
 	"license": "MIT",
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.9",

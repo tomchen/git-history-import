@@ -8,16 +8,14 @@ import {
 	isGitRepo,
 	isWorkingTreeClean,
 } from "./git.js";
+import type { Commit } from "./parser.js";
 import { patchFastExportStream } from "./serializer.js";
 
 export interface ImportOptions {
 	noBackup?: boolean;
 }
 
-export async function importHistory(
-	file: string,
-	opts: ImportOptions,
-): Promise<void> {
+export function importHistory(file: string, opts: ImportOptions): void {
 	if (!isGitRepo()) {
 		throw new Error("Not a git repository");
 	}
@@ -29,34 +27,42 @@ export async function importHistory(
 	}
 
 	const jsonStr = readFileSync(file, "utf-8");
-	let data: { commits: unknown[] };
+	let data: Record<string, unknown>;
 	try {
-		data = JSON.parse(jsonStr) as { commits: unknown[] };
+		data = JSON.parse(jsonStr) as Record<string, unknown>;
 	} catch (e) {
 		throw new Error(`Invalid JSON: ${(e as Error).message}`);
 	}
 
-	if (!data.commits || !Array.isArray(data.commits)) {
+	if (!Array.isArray(data.commits)) {
 		throw new Error('Invalid JSON: missing "commits" array');
 	}
 
+	const commits = data.commits.map((c: unknown, i: number) =>
+		validateCommit(c, i),
+	);
+
 	const branch = getCurrentBranch();
+	if (branch === "HEAD") {
+		throw new Error(
+			"Cannot operate on detached HEAD. Please checkout a branch first.",
+		);
+	}
+
+	const ref = typeof data.ref === "string" ? data.ref : `refs/heads/${branch}`;
 
 	if (!opts.noBackup) {
 		const backupBranch = createBackupBranch();
 		console.log(`Backup branch created: ${backupBranch}`);
 	}
 
-	const stream = gitFastExport();
-	const patchedStream = patchFastExportStream(
-		stream,
-		data.commits as Parameters<typeof patchFastExportStream>[1],
-	);
+	const stream = gitFastExport(ref);
+	const patchedStream = patchFastExportStream(stream, commits);
 	gitFastImport(patchedStream);
 	gitResetHard(branch);
 
 	console.log(
-		`Imported ${data.commits.length} commits. History rewritten on branch '${branch}'.`,
+		`Imported ${commits.length} commits. History rewritten on branch '${branch}'.`,
 	);
 	console.log("");
 	console.log("To completely purge old history:");
@@ -70,4 +76,43 @@ export async function importHistory(
 	console.log("# 4. Force push to remote:");
 	console.log("git push --force");
 	console.log("# 5. All collaborators must re-clone");
+}
+
+function validateCommit(c: unknown, index: number): Commit {
+	if (typeof c !== "object" || c === null) {
+		throw new Error(`commits[${index}]: expected an object`);
+	}
+	const obj = c as Record<string, unknown>;
+
+	if (typeof obj.message !== "string") {
+		throw new Error(`commits[${index}].message: expected a string`);
+	}
+
+	validateIdentity(obj.author, `commits[${index}].author`);
+	validateIdentity(obj.committer, `commits[${index}].committer`);
+
+	return {
+		original_hash:
+			typeof obj.original_hash === "string" ? obj.original_hash : null,
+		message: obj.message,
+		author: obj.author as Commit["author"],
+		committer: obj.committer as Commit["committer"],
+		parents: Array.isArray(obj.parents) ? (obj.parents as string[]) : [],
+	};
+}
+
+function validateIdentity(id: unknown, path: string): void {
+	if (typeof id !== "object" || id === null) {
+		throw new Error(`${path}: expected an object with name, email, date`);
+	}
+	const obj = id as Record<string, unknown>;
+	if (typeof obj.name !== "string") {
+		throw new Error(`${path}.name: expected a string`);
+	}
+	if (typeof obj.email !== "string") {
+		throw new Error(`${path}.email: expected a string`);
+	}
+	if (typeof obj.date !== "string") {
+		throw new Error(`${path}.date: expected a string`);
+	}
 }

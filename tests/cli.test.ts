@@ -1,11 +1,11 @@
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // We import main (and exercise parseArgs / printUsage) by calling main() directly.
-// The auto-run guard in cli.ts (import.meta.url check) prevents it from running on import.
+// The auto-run guard is in bin/githe.js (not cli.ts), so importing here is safe.
 import { main } from "../src/cli.js";
 
 function createTestRepo() {
@@ -36,7 +36,7 @@ describe("main() CLI", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("printUsage and exits 0 with no args", async () => {
+	it("printUsage and exits 0 with no args", () => {
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const exitSpy = vi
 			.spyOn(process, "exit")
@@ -44,7 +44,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main([]);
+			main([]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:0");
 		}
@@ -55,7 +55,7 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("printUsage and exits 0 with --help", async () => {
+	it("printUsage and exits 0 with --help", () => {
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const exitSpy = vi
 			.spyOn(process, "exit")
@@ -63,7 +63,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main(["--help"]);
+			main(["--help"]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:0");
 		}
@@ -74,7 +74,7 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("printUsage and exits 0 with -h", async () => {
+	it("printUsage and exits 0 with -h", () => {
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const exitSpy = vi
 			.spyOn(process, "exit")
@@ -82,7 +82,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main(["-h"]);
+			main(["-h"]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:0");
 		}
@@ -90,34 +90,34 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("export command writes JSON to stdout", async () => {
+	it("export command writes JSON to stdout", () => {
 		const writeSpy = vi
 			.spyOn(process.stdout, "write")
 			.mockImplementation(() => true);
-		await main(["export"]);
+		main(["export"]);
 		expect(writeSpy).toHaveBeenCalled();
 		const written = writeSpy.mock.calls[0][0] as string;
 		expect(JSON.parse(written).version).toBe(1);
 		writeSpy.mockRestore();
 	});
 
-	it("parseArgs: --range option is parsed", async () => {
+	it("parseArgs: --range option is parsed", () => {
 		const writeSpy = vi
 			.spyOn(process.stdout, "write")
 			.mockImplementation(() => true);
 		// Use HEAD..HEAD (empty range) to exercise the --range parsing path without needing 2 commits
-		await main(["export", "--range", "refs/heads/master"]);
+		main(["export", "--range", "refs/heads/master"]);
 		writeSpy.mockRestore();
 	});
 
-	it("export command with -o writes to file", async () => {
+	it("export command with -o writes to file", () => {
 		const outFile = join(tmpDir, "cli-out.json");
-		await main(["export", "-o", outFile]);
-		const data = JSON.parse(require("node:fs").readFileSync(outFile, "utf-8"));
+		main(["export", "-o", outFile]);
+		const data = JSON.parse(readFileSync(outFile, "utf-8"));
 		expect(data.version).toBe(1);
 	});
 
-	it("import command without file path exits 1", async () => {
+	it("import command without file path exits 1", () => {
 		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const exitSpy = vi
 			.spyOn(process, "exit")
@@ -125,7 +125,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main(["import"]);
+			main(["import"]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:1");
 		}
@@ -136,7 +136,7 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("unknown command exits 1 with error message", async () => {
+	it("unknown command exits 1 with error message", () => {
 		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const exitSpy = vi
@@ -145,7 +145,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main(["boguscmd"]);
+			main(["boguscmd"]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:1");
 		}
@@ -157,7 +157,7 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("parseArgs: unknown option exits 1", async () => {
+	it("parseArgs: unknown option exits 1", () => {
 		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const exitSpy = vi
 			.spyOn(process, "exit")
@@ -165,7 +165,7 @@ describe("main() CLI", () => {
 				throw new Error(`exit:${_code}`);
 			});
 		try {
-			await main(["export", "--unknown-flag"]);
+			main(["export", "--unknown-flag"]);
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:1");
 		}
@@ -176,19 +176,18 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("import command executes successfully with valid JSON", async () => {
+	it("import command executes successfully with valid JSON", () => {
 		// First export
 		const jsonFile = join(tmpDir, "cli-import.json");
-		await main(["export", "-o", jsonFile]);
+		main(["export", "-o", jsonFile]);
 
 		// Modify and import
-		const fs = await import("node:fs");
-		const data = JSON.parse(fs.readFileSync(jsonFile, "utf-8"));
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		data.commits[0].message = "cli-test imported";
-		fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
 		const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-		await main(["import", jsonFile, "--no-backup"]);
+		main(["import", jsonFile, "--no-backup"]);
 		expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Imported"));
 		logSpy.mockRestore();
 	});

@@ -1,5 +1,11 @@
 import { execSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -178,5 +184,89 @@ describe("githe e2e", () => {
 		expect(result.code).toBe(1);
 		expect(result.stderr).toMatch(/error:/i);
 		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("preserves binary blob data through export → import cycle", () => {
+		// Create a file with binary content (bytes that are invalid UTF-8)
+		const binaryContent = Buffer.from([0x00, 0x80, 0xff, 0x41, 0x42, 0x43]);
+		writeFileSync(join(repoDir, "binary.bin"), binaryContent);
+		execSync("git add binary.bin && git commit -m 'add binary file'", {
+			cwd: repoDir,
+		});
+
+		const tmpJsonDir = mkdtempSync(join(tmpdir(), "githe-e2e-binary-"));
+		const jsonFile = join(tmpJsonDir, "history.json");
+		run(`export -o ${jsonFile}`);
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
+
+		// Modify a commit message (not the binary content)
+		data.commits[data.commits.length - 1].message = "MODIFIED: add binary file";
+		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+
+		run(`import ${jsonFile} --no-backup`);
+
+		// Verify binary content is preserved exactly
+		const result = readFileSync(join(repoDir, "binary.bin"));
+		expect(result).toEqual(binaryContent);
+
+		// Verify the message was changed
+		const log = execSync("git log -1 --format='%s'", {
+			encoding: "utf-8",
+			cwd: repoDir,
+		}).trim();
+		expect(log).toBe("MODIFIED: add binary file");
+
+		rmSync(tmpJsonDir, { recursive: true, force: true });
+	});
+
+	it("--range export and import round-trip", () => {
+		const tmpJsonDir = mkdtempSync(join(tmpdir(), "githe-e2e-range-"));
+		const jsonFile = join(tmpJsonDir, "range.json");
+
+		// Export only the last commit using a ref (full branch ref instead of range)
+		// Using refs/heads/master to get a single-commit round-trip
+		run(`export -o ${jsonFile} --range HEAD`);
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
+		expect(data.commits.length).toBeGreaterThanOrEqual(1);
+		expect(data.ref).toBe("HEAD");
+
+		// Modify the last commit's message and import
+		const lastIdx = data.commits.length - 1;
+		const originalFirst = data.commits[0].message;
+		data.commits[lastIdx].message = "RANGE-MODIFIED";
+		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+		run(`import ${jsonFile} --no-backup`);
+
+		// Verify the last commit was changed
+		const log = execSync("git log --format='%s' --reverse", {
+			encoding: "utf-8",
+			cwd: repoDir,
+		})
+			.trim()
+			.split("\n");
+		expect(log[log.length - 1]).toBe("RANGE-MODIFIED");
+		// When exporting all commits, earlier commits should be unchanged
+		if (log.length > 1) {
+			expect(log[0]).toBe(originalFirst);
+		}
+
+		rmSync(tmpJsonDir, { recursive: true, force: true });
+	});
+
+	it("does not execute shell metacharacters in --range", () => {
+		try {
+			execSync(
+				`node ${CLI} export --range 'HEAD; touch ${join(repoDir, "injected.txt")}'`,
+				{
+					encoding: "utf-8",
+					cwd: repoDir,
+					timeout: 5000,
+				},
+			);
+		} catch {
+			// Expected to fail — git can't parse the range
+		}
+		// The injected command must NOT have executed
+		expect(existsSync(join(repoDir, "injected.txt"))).toBe(false);
 	});
 });

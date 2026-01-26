@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { getRepoRoot, gitFastExport, isGitRepo } from "./git.js";
+import { getCurrentRef, getRepoRoot, gitFastExport, isGitRepo } from "./git.js";
 import { parseFastExport } from "./parser.js";
 
 export interface ExportOptions {
@@ -7,14 +7,13 @@ export interface ExportOptions {
 	range?: string;
 }
 
-export async function exportHistory(
-	opts: ExportOptions,
-): Promise<string | undefined> {
+export function exportHistory(opts: ExportOptions): string | undefined {
 	if (!isGitRepo()) {
 		throw new Error("Not a git repository");
 	}
 
-	const stream = gitFastExport(opts.range);
+	const ref = opts.range || getCurrentRef();
+	const stream = gitFastExport(ref);
 	const { commits } = parseFastExport(stream);
 	const repoRoot = getRepoRoot();
 
@@ -27,6 +26,7 @@ export async function exportHistory(
 		{
 			version: 1,
 			repo: repoRoot,
+			ref,
 			exported_at: new Date().toISOString(),
 			commits: normalizedCommits,
 		},
@@ -37,7 +37,7 @@ export async function exportHistory(
 	if (opts.output) {
 		writeFileSync(opts.output, output, "utf-8");
 		console.log(`Exported ${commits.length} commits to ${opts.output}`);
-	} else {
-		return output;
+		return undefined;
 	}
+	return output;
 }

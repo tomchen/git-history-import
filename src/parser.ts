@@ -14,33 +14,33 @@ export interface Commit {
 
 export interface ParseResult {
 	commits: Commit[];
-	raw: string;
+	raw: Buffer;
 	markToOid: Map<number, string>;
 }
 
 /**
- * Parse `git fast-export --all --show-original-ids` output into structured
+ * Parse `git fast-export --show-original-ids` output into structured
  * commit objects.
+ *
+ * Accepts a raw Buffer to preserve binary blob data. Text lines (commit
+ * metadata, keywords) are decoded as UTF-8; binary data blocks are
+ * skipped by byte count without decoding.
  */
-export function parseFastExport(stream: string): ParseResult {
+export function parseFastExport(stream: Buffer): ParseResult {
 	const commits: Commit[] = [];
-	/** mark number → original-oid */
 	const markToOid = new Map<number, string>();
 
-	// We work on the raw bytes so that `data N` byte-counts are exact.
-	const buf = Buffer.from(stream, "utf8");
-	let pos = 0; // current byte offset into buf
+	const buf = stream;
+	let pos = 0;
 
-	/** Read one text line (up to and including \n). Returns the line without \n. */
 	function readLine(): string {
 		const start = pos;
-		while (pos < buf.length && buf[pos] !== 0x0a /* '\n' */) pos++;
+		while (pos < buf.length && buf[pos] !== 0x0a) pos++;
 		const line = buf.toString("utf8", start, pos);
-		if (pos < buf.length) pos++; // consume the '\n'
+		if (pos < buf.length) pos++;
 		return line;
 	}
 
-	/** Peek at the current line without advancing pos. */
 	function peekLine(): string {
 		const saved = pos;
 		const line = readLine();
@@ -48,13 +48,11 @@ export function parseFastExport(stream: string): ParseResult {
 		return line;
 	}
 
-	/** Skip exactly N bytes then one trailing newline. */
 	function skipBytes(n: number): void {
 		pos += n;
 		if (pos < buf.length && buf[pos] === 0x0a) pos++;
 	}
 
-	/** Read exactly N bytes as a UTF-8 string, then consume the trailing newline. */
 	function readBytes(n: number): string {
 		const content = buf.toString("utf8", pos, pos + n);
 		pos += n;
@@ -62,22 +60,13 @@ export function parseFastExport(stream: string): ParseResult {
 		return content;
 	}
 
-	/**
-	 * Consume a `data N` stanza (the "data N" header line has already been read
-	 * by the caller and N is passed in).  Returns the data as a string.
-	 */
 	function consumeData(n: number): string {
 		return readBytes(n);
 	}
 
-	/**
-	 * Parse an author/committer line of the form:
-	 *   Name <email> timestamp timezone
-	 * Returns date as human-readable ISO-like string: "2026-03-28 20:53:44 +0100"
-	 */
 	function parseIdentity(line: string): Identity {
 		const gtIdx = line.lastIndexOf(">");
-		const afterGt = line.slice(gtIdx + 2); // skip '> '
+		const afterGt = line.slice(gtIdx + 2);
 		const ltIdx = line.indexOf("<");
 		const name = line.slice(0, ltIdx).trimEnd();
 		const email = line.slice(ltIdx + 1, gtIdx);
@@ -86,11 +75,21 @@ export function parseFastExport(stream: string): ParseResult {
 		return { name, email, date };
 	}
 
+	function isTopLevel(next: string): boolean {
+		return (
+			next === "" ||
+			next.startsWith("commit ") ||
+			next.startsWith("blob") ||
+			next.startsWith("reset ") ||
+			next.startsWith("tag ") ||
+			next.startsWith("done")
+		);
+	}
+
 	while (pos < buf.length) {
 		const line = readLine();
 		if (line === "") continue;
 
-		// ── commit block ──────────────────────────────────────────────────────────
 		if (line.startsWith("commit ")) {
 			let markNum: number | null = null;
 			let original_hash: string | null = null;
@@ -99,7 +98,6 @@ export function parseFastExport(stream: string): ParseResult {
 			let message = "";
 			const parentMarks: { kind: string; mark: number }[] = [];
 
-			// Read commit header lines until we hit the data stanza or end-of-block
 			let headersDone = false;
 			while (!headersDone && pos < buf.length) {
 				const hdr = readLine();
@@ -117,23 +115,11 @@ export function parseFastExport(stream: string): ParseResult {
 					message = consumeData(n);
 					headersDone = true;
 				}
-				// encoding, gpgsig, etc. — skip silently
 			}
 
-			// After the data stanza: optional from/merge/file-op lines until blank
-			// line or next top-level keyword.
 			while (pos < buf.length) {
 				const next = peekLine();
-				if (
-					next === "" ||
-					next.startsWith("commit ") ||
-					next.startsWith("blob") ||
-					next.startsWith("reset ") ||
-					next.startsWith("tag ") ||
-					next.startsWith("done")
-				) {
-					break;
-				}
+				if (isTopLevel(next)) break;
 				const opLine = readLine();
 				if (opLine.startsWith("from :")) {
 					parentMarks.push({
@@ -146,58 +132,34 @@ export function parseFastExport(stream: string): ParseResult {
 						mark: Number.parseInt(opLine.slice(7), 10),
 					});
 				}
-				// M / D / R / C file ops — ignored for parent resolution
 			}
 
-			// Register this commit's mark → oid mapping
 			if (markNum !== null && original_hash !== null) {
 				markToOid.set(markNum, original_hash);
 			}
 
-			// Resolve parent marks → oids (best-effort; unknown marks produce null)
 			const parents = parentMarks
 				.map(({ mark }) => markToOid.get(mark) ?? null)
 				.filter((oid): oid is string => oid !== null);
 
-			commits.push({
-				original_hash,
-				message,
-				author,
-				committer,
-				parents,
-			});
-
+			commits.push({ original_hash, message, author, committer, parents });
 			continue;
 		}
 
-		// ── blob block ────────────────────────────────────────────────────────────
 		if (line === "blob") {
 			while (pos < buf.length) {
 				const next = peekLine();
-				if (
-					next === "" ||
-					next.startsWith("commit ") ||
-					next.startsWith("blob") ||
-					next.startsWith("reset ") ||
-					next.startsWith("tag ") ||
-					next.startsWith("done")
-				) {
-					break;
-				}
+				if (isTopLevel(next)) break;
 				const blobLine = readLine();
 				if (blobLine.startsWith("data ")) {
 					const n = Number.parseInt(blobLine.slice(5), 10);
 					skipBytes(n);
 					break;
 				}
-				// mark / original-oid lines inside blob — skip
 			}
 			continue;
 		}
 
-		// ── reset / tag / done / other ────────────────────────────────────────────
-		// reset may carry a `from :N` that we don't need for commit parents.
-		// Just skip until the next top-level block.
 		if (
 			line.startsWith("reset ") ||
 			line.startsWith("tag ") ||
@@ -205,16 +167,7 @@ export function parseFastExport(stream: string): ParseResult {
 		) {
 			while (pos < buf.length) {
 				const next = peekLine();
-				if (
-					next === "" ||
-					next.startsWith("commit ") ||
-					next.startsWith("blob") ||
-					next.startsWith("reset ") ||
-					next.startsWith("tag ") ||
-					next.startsWith("done")
-				) {
-					break;
-				}
+				if (isTopLevel(next)) break;
 				const tagLine = readLine();
 				if (tagLine.startsWith("data ")) {
 					const n = Number.parseInt(tagLine.slice(5), 10);
@@ -223,8 +176,6 @@ export function parseFastExport(stream: string): ParseResult {
 				}
 			}
 		}
-
-		// Any other line (e.g. bare 'from' after a reset) — skip
 	}
 
 	return { commits, raw: stream, markToOid };
@@ -236,7 +187,6 @@ export function parseFastExport(stream: string): ParseResult {
 function gitDateToHuman(raw: string): string {
 	const [timestamp, tz] = raw.split(" ");
 	const sec = Number.parseInt(timestamp, 10);
-	// Build date string in UTC then apply timezone offset for display
 	const sign = tz[0] === "+" ? 1 : -1;
 	const tzH = Number.parseInt(tz.slice(1, 3), 10);
 	const tzM = Number.parseInt(tz.slice(3, 5), 10);

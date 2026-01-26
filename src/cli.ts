@@ -33,7 +33,7 @@ function printUsage(): void {
   githe import <file> [--no-backup]`);
 }
 
-export async function main(argv: string[]): Promise<void> {
+export function main(argv: string[]): void {
 	const command = argv[0];
 
 	if (!command || command === "--help" || command === "-h") {
@@ -44,7 +44,7 @@ export async function main(argv: string[]): Promise<void> {
 	const opts = parseArgs(argv.slice(1));
 
 	if (command === "export") {
-		const result = await exportHistory(opts);
+		const result = exportHistory(opts);
 		if (result !== undefined) {
 			process.stdout.write(result);
 		}
@@ -54,7 +54,7 @@ export async function main(argv: string[]): Promise<void> {
 			console.error("Error: import requires a JSON file path");
 			process.exit(1);
 		}
-		await importHistory(file, opts);
+		importHistory(file, opts);
 	} else {
 		console.error(`Unknown command: ${command}`);
 		printUsage();

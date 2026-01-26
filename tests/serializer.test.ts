@@ -81,9 +81,9 @@ test("replaces author name and email", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("author Zara <zara@new.com>");
-	expect(result).not.toContain("Alice");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("author Zara <zara@new.com>");
+	expect(result.toString()).not.toContain("Alice");
 });
 
 // ── Test 2: replaces commit message and updates data length ──────────────────
@@ -110,10 +110,10 @@ test("replaces commit message and updates data length", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain(`data ${newLen}`);
-	expect(result).toContain(newMsg);
-	expect(result).not.toContain(oldMsg);
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain(`data ${newLen}`);
+	expect(result.toString()).toContain(newMsg);
+	expect(result.toString()).not.toContain(oldMsg);
 });
 
 // ── Test 3: replaces committer date ──────────────────────────────────────────
@@ -142,10 +142,10 @@ test("replaces committer date", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
+	const result = patchFastExportStream(Buffer.from(stream), commits);
 	// humanDateToGit converts "2033-05-18 07:03:19 +0530" → "1999999999 +0530"
-	expect(result).toContain("1999999999 +0530");
-	expect(result).not.toContain("1700000001 +0100");
+	expect(result.toString()).toContain("1999999999 +0530");
+	expect(result.toString()).not.toContain("1700000001 +0100");
 });
 
 // ── Test 4: handles multiple commits with blobs between them ─────────────────
@@ -209,19 +209,23 @@ test("handles multiple commits with blobs between them", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
+	const result = patchFastExportStream(Buffer.from(stream), commits);
 
 	// Both commits patched
-	expect(result).toContain("Alice2");
-	expect(result).toContain("patched first");
-	expect(result).toContain("Bob2");
-	expect(result).toContain("patched second");
+	expect(result.toString()).toContain("Alice2");
+	expect(result.toString()).toContain("patched first");
+	expect(result.toString()).toContain("Bob2");
+	expect(result.toString()).toContain("patched second");
 
 	// Blob blocks passed through verbatim
-	expect(result).toContain("ce013625030ba8dba906f756967f9e9ca394464a");
-	expect(result).toContain("ce013625030ba8dba906f756967f9e9ca394464b");
-	expect(result).toContain("hello\n");
-	expect(result).toContain("bye\n");
+	expect(result.toString()).toContain(
+		"ce013625030ba8dba906f756967f9e9ca394464a",
+	);
+	expect(result.toString()).toContain(
+		"ce013625030ba8dba906f756967f9e9ca394464b",
+	);
+	expect(result.toString()).toContain("hello\n");
+	expect(result.toString()).toContain("bye\n");
 });
 
 // ── Test 5: handles multiline commit messages ─────────────────────────────────
@@ -248,9 +252,9 @@ test("handles multiline commit messages with correct data byte length", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain(`data ${expectedLen}`);
-	expect(result).toContain("line one\nline two\nline three");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain(`data ${expectedLen}`);
+	expect(result.toString()).toContain("line one\nline two\nline three");
 });
 
 // ── Test 6: throws on commit count mismatch ──────────────────────────────────
@@ -282,7 +286,7 @@ test("throws when stream commit count does not match commits array length", () =
 		},
 	];
 
-	expect(() => patchFastExportStream(stream, commits)).toThrow(
+	expect(() => patchFastExportStream(Buffer.from(stream), commits)).toThrow(
 		/commit count mismatch/i,
 	);
 });
@@ -311,8 +315,8 @@ test('does not miscount "commit " lines inside commit messages or blob data', ()
 	];
 
 	// Should NOT throw — there is 1 real commit, not 3
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("docs: add plan");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("docs: add plan");
 });
 
 // ── Test 8: unknown commit header lines are passed through verbatim ───────────
@@ -340,9 +344,9 @@ test("passes through unknown commit header lines (encoding, gpgsig, etc.)", () =
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("encoding utf-8");
-	expect(result).toContain("encoded commit");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("encoding utf-8");
+	expect(result.toString()).toContain("encoded commit");
 });
 
 // ── Test 9: tag blocks with data are passed through ──────────────────────────
@@ -376,11 +380,11 @@ test("passes through tag blocks with data stanzas", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("tag v1.0");
-	expect(result).toContain("from :1");
-	expect(result).toContain("tagger Alice");
-	expect(result).toContain(tagMsg);
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("tag v1.0");
+	expect(result.toString()).toContain("from :1");
+	expect(result.toString()).toContain("tagger Alice");
+	expect(result.toString()).toContain(tagMsg);
 });
 
 // ── Test 10: done keyword is passed through ────────────────────────────────
@@ -404,8 +408,8 @@ test('passes through "done" keyword', () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("done");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("done");
 });
 
 // ── Test 11: humanDateToGit passthrough for raw git dates ─────────────────
@@ -436,9 +440,11 @@ test("passes through raw git date format unchanged", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
+	const result = patchFastExportStream(Buffer.from(stream), commits);
 	// The raw git date should appear verbatim in the output
-	expect(result).toContain(`author Alice <alice@example.com> ${rawGitDate}`);
+	expect(result.toString()).toContain(
+		`author Alice <alice@example.com> ${rawGitDate}`,
+	);
 });
 
 // ── Test 12: humanDateToGit throws on unrecognized date format ────────────
@@ -468,7 +474,7 @@ test("throws on unrecognized date format in author/committer", () => {
 		},
 	];
 
-	expect(() => patchFastExportStream(stream, commits)).toThrow(
+	expect(() => patchFastExportStream(Buffer.from(stream), commits)).toThrow(
 		/unrecognized date format/i,
 	);
 });
@@ -496,9 +502,9 @@ test('handles blob terminated by "done" keyword without a data stanza', () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("blob");
-	expect(result).toContain("done");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("blob");
+	expect(result.toString()).toContain("done");
 });
 
 // ── Test 14: unrecognised top-level line is passed through ─────────────────
@@ -524,6 +530,34 @@ test("passes through unrecognised top-level lines verbatim", () => {
 		},
 	];
 
-	const result = patchFastExportStream(stream, commits);
-	expect(result).toContain("progress some status message");
+	const result = patchFastExportStream(Buffer.from(stream), commits);
+	expect(result.toString()).toContain("progress some status message");
+});
+
+// ── Test 15: throws when commit original_hash does not match stream original-oid ──
+
+test("throws when commit original_hash does not match stream original-oid", () => {
+	const stream = Buffer.from(
+		makeCommit({
+			mark: 1,
+			oid: "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+			author: ALICE,
+			committer: BOB,
+			msg: "some commit",
+		}),
+	);
+
+	const commits = [
+		{
+			original_hash: "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
+			message: "some commit",
+			author: ALICE,
+			committer: BOB,
+			parents: [],
+		},
+	];
+
+	expect(() => patchFastExportStream(stream, commits)).toThrow(
+		/commit identity mismatch/i,
+	);
 });
