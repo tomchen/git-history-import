@@ -78,15 +78,11 @@ The following fields are rewritten during import:
 - `author.name`, `author.email`, `author.date` — authorship
 - `committer.name`, `committer.email`, `committer.date` — committer identity
 
-The `original_hash` field is used during import to verify that commits are in the correct order. Do not reorder, add, or remove entries in the `commits` array — the count and order must match the repository's history.
+The `original_hash` field is **required** for import. githe matches each JSON entry to a commit in the repository by this hash and only patches commits that appear in the JSON. This means you can safely export a subset with `--range`, edit it, and import it back — only the matching commits are rewritten, and the rest of the history is preserved unchanged.
 
-The `parents` field is exported for reference only and is not used during import. The tree (file contents, including binary files) is preserved exactly as-is.
+The order of entries in the `commits` array does not matter. You may also remove entries you don't want to edit. However, you must not add entries whose `original_hash` does not exist in the current branch.
 
-## The `ref` Field
-
-The exported JSON includes a `ref` field recording which ref or range was exported. When importing, githe uses this field to re-export the same ref from the repository. This allows `--range` exports to round-trip correctly.
-
-If you edit the `ref` field or import a JSON that was exported from a different repository state, the commit identity check will reject mismatched commits.
+The `parents` and `ref` fields are exported for reference only and are not used during import. The tree (file contents, including binary files) is preserved exactly as-is.
 
 ## Backup and Recovery
 
@@ -145,8 +141,8 @@ Full TypeScript type definitions are included.
 
 ## Limitations
 
-- **Current branch only.** By default, githe exports and imports the current branch. Detached HEAD is not supported.
-- **Commit order is fixed.** The `commits` array must stay in the same order as the repository history. Reordering, adding, or removing commits will cause an error.
+- **Current branch only.** githe exports and imports the current branch. Detached HEAD is not supported.
+- **`original_hash` is required.** Every commit in the JSON must have an `original_hash` that exists in the current branch. Commits with missing or unknown hashes are rejected.
 - **Scalability.** The entire fast-export stream is buffered in memory. Very large repositories (hundreds of MB of history) may exceed the 100 MB buffer limit.
 
 ## Development

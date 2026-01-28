@@ -49,7 +49,7 @@ export function importHistory(file: string, opts: ImportOptions): void {
 		);
 	}
 
-	const ref = typeof data.ref === "string" ? data.ref : `refs/heads/${branch}`;
+	const ref = `refs/heads/${branch}`;
 
 	if (!opts.noBackup) {
 		const backupBranch = createBackupBranch();
@@ -91,9 +91,12 @@ function validateCommit(c: unknown, index: number): Commit {
 	validateIdentity(obj.author, `commits[${index}].author`);
 	validateIdentity(obj.committer, `commits[${index}].committer`);
 
+	if (typeof obj.original_hash !== "string" || obj.original_hash.length === 0) {
+		throw new Error(`commits[${index}].original_hash: required for import`);
+	}
+
 	return {
-		original_hash:
-			typeof obj.original_hash === "string" ? obj.original_hash : null,
+		original_hash: obj.original_hash,
 		message: obj.message,
 		author: obj.author as Commit["author"],
 		committer: obj.committer as Commit["committer"],

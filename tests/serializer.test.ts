@@ -257,37 +257,29 @@ test("handles multiline commit messages with correct data byte length", () => {
 	expect(result.toString()).toContain("line one\nline two\nline three");
 });
 
-// ── Test 6: throws on commit count mismatch ──────────────────────────────────
+// ── Test 6: throws when JSON commit hash is not found in stream ───────────────
 
-test("throws when stream commit count does not match commits array length", () => {
-	const stream = makeCommit({
-		mark: 1,
-		oid: "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-		author: ALICE,
-		committer: BOB,
-		msg: "only commit",
-	});
-
-	// Provide 2 commit objects but stream has only 1
-	const commits = [
-		{
-			original_hash: "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
-			message: "only commit",
+test("throws when JSON commit hash is not found in stream", () => {
+	const stream = Buffer.from(
+		makeCommit({
+			mark: 1,
+			oid: "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
 			author: ALICE,
 			committer: BOB,
-			parents: [],
-		},
+			msg: "only commit",
+		}),
+	);
+	const commits = [
 		{
 			original_hash: "0000000000000000000000000000000000000000",
-			message: "extra",
+			message: "nonexistent",
 			author: CAROL,
 			committer: CAROL,
 			parents: [],
 		},
 	];
-
-	expect(() => patchFastExportStream(Buffer.from(stream), commits)).toThrow(
-		/commit count mismatch/i,
+	expect(() => patchFastExportStream(stream, commits)).toThrow(
+		/not found in repository/i,
 	);
 });
 
@@ -534,9 +526,9 @@ test("passes through unrecognised top-level lines verbatim", () => {
 	expect(result.toString()).toContain("progress some status message");
 });
 
-// ── Test 15: throws when commit original_hash does not match stream original-oid ──
+// ── Test 15: throws when commit has no original_hash ─────────────────────────
 
-test("throws when commit original_hash does not match stream original-oid", () => {
+test("throws when commit has no original_hash", () => {
 	const stream = Buffer.from(
 		makeCommit({
 			mark: 1,
@@ -549,7 +541,7 @@ test("throws when commit original_hash does not match stream original-oid", () =
 
 	const commits = [
 		{
-			original_hash: "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
+			original_hash: null,
 			message: "some commit",
 			author: ALICE,
 			committer: BOB,
@@ -557,7 +549,47 @@ test("throws when commit original_hash does not match stream original-oid", () =
 		},
 	];
 
-	expect(() => patchFastExportStream(stream, commits)).toThrow(
-		/commit identity mismatch/i,
+	expect(() => patchFastExportStream(stream, commits as never)).toThrow(
+		/original_hash/i,
 	);
+});
+
+// ── Test 16: patches only matching commits, passes through unmatched ──────────
+
+test("patches only matching commits, passes through unmatched", () => {
+	// Stream has 2 commits, JSON only patches the second one
+	const commit1 = makeCommit({
+		mark: 1,
+		oid: "1111111111111111111111111111111111111111",
+		author: ALICE,
+		committer: ALICE,
+		msg: "first commit",
+	});
+	const commit2 = makeCommit({
+		mark: 2,
+		oid: "2222222222222222222222222222222222222222",
+		author: BOB,
+		committer: BOB,
+		msg: "second commit",
+		extra: ["from :1"],
+	});
+	const stream = Buffer.from(`${commit1}\n${commit2}`);
+	const commits = [
+		{
+			original_hash: "2222222222222222222222222222222222222222",
+			message: "patched second",
+			author: CAROL,
+			committer: CAROL,
+			parents: [],
+		},
+	];
+	const result = patchFastExportStream(stream, commits);
+	const out = result.toString();
+	// First commit unchanged
+	expect(out).toContain("Alice");
+	expect(out).toContain("first commit");
+	// Second commit patched
+	expect(out).toContain("Carol");
+	expect(out).toContain("patched second");
+	expect(out).not.toContain("second commit");
 });

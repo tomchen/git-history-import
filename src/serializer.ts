@@ -3,28 +3,36 @@ import type { Commit } from "./parser.js";
 /**
  * Patch a `git fast-export` stream with updated commit metadata.
  *
- * Accepts and returns raw Buffers to preserve binary blob data. Text
- * parts (commit headers, messages) are decoded/encoded as UTF-8; binary
- * data blocks are copied byte-for-byte without decoding.
+ * Matches JSON commits to stream commits by `original_hash` (looked up
+ * from each commit block's `original-oid` line). Commits not present in
+ * the JSON are passed through unchanged — this allows range-exported
+ * JSON to be applied against a full-branch re-export without truncating
+ * history.
  *
- * Validates commit identity: if the JSON provides an original_hash, it
- * must match the stream's original-oid for the corresponding commit.
+ * Every commit in the JSON must have a non-null `original_hash`, and
+ * every hash must match exactly one commit in the stream.
  */
 export function patchFastExportStream(
 	stream: Buffer,
 	commits: Commit[],
 ): Buffer {
-	const streamCommitCount = countCommits(stream);
-	if (streamCommitCount !== commits.length) {
-		throw new Error(
-			`Commit count mismatch: stream has ${streamCommitCount} commit(s) but JSON has ${commits.length}`,
-		);
+	const patchMap = new Map<string, Commit>();
+	for (const commit of commits) {
+		if (!commit.original_hash) {
+			throw new Error("Every commit must have an original_hash for import");
+		}
+		if (patchMap.has(commit.original_hash)) {
+			throw new Error(
+				`Duplicate original_hash in JSON: ${commit.original_hash}`,
+			);
+		}
+		patchMap.set(commit.original_hash, commit);
 	}
 
 	const buf = stream;
 	let pos = 0;
-	let commitIndex = 0;
 	const outParts: Buffer[] = [];
+	const matchedHashes = new Set<string>();
 
 	function readLine(): string {
 		const start = pos;
@@ -49,10 +57,6 @@ export function patchFastExportStream(
 		outParts.push(Buffer.from(`${line}\n`));
 	}
 
-	/**
-	 * Copy N raw data bytes from the input buffer, then consume the
-	 * trailing newline. No encoding conversion — binary-safe.
-	 */
 	function emitDataBytes(n: number): void {
 		outParts.push(buf.subarray(pos, pos + n));
 		pos += n;
@@ -87,43 +91,54 @@ export function patchFastExportStream(
 		}
 
 		if (line.startsWith("commit ")) {
-			const commit = commits[commitIndex++];
 			emitLine(line);
 
-			let donePatchingHeaders = false;
-			while (!donePatchingHeaders && pos < buf.length) {
-				const hdr = readLine();
+			// Collect header lines until `data` to discover original-oid
+			const headerLines: string[] = [];
+			let streamOid: string | null = null;
+			let dataLen = -1;
 
-				if (hdr.startsWith("mark ")) {
-					emitLine(hdr);
-				} else if (hdr.startsWith("original-oid ")) {
-					emitLine(hdr);
-					const streamOid = hdr.slice(13).trim();
-					if (commit.original_hash && commit.original_hash !== streamOid) {
-						throw new Error(
-							`Commit identity mismatch at index ${commitIndex - 1}: ` +
-								`stream has ${streamOid} but JSON has ${commit.original_hash}`,
-						);
-					}
-				} else if (hdr.startsWith("author ")) {
+			while (pos < buf.length) {
+				const hdr = readLine();
+				if (hdr.startsWith("original-oid ")) {
+					streamOid = hdr.slice(13).trim();
+				}
+				if (hdr.startsWith("data ")) {
+					dataLen = Number.parseInt(hdr.slice(5), 10);
+					headerLines.push(hdr);
+					break;
+				}
+				headerLines.push(hdr);
+			}
+
+			const commit = streamOid !== null ? patchMap.get(streamOid) : undefined;
+			if (commit && streamOid) {
+				matchedHashes.add(streamOid);
+			}
+
+			// Emit headers — patch author/committer/data if we have a match
+			for (const hdr of headerLines) {
+				if (hdr.startsWith("author ") && commit) {
 					const { name, email, date } = commit.author!;
 					emit(`author ${name} <${email}> ${humanDateToGit(date)}`);
-				} else if (hdr.startsWith("committer ")) {
+				} else if (hdr.startsWith("committer ") && commit) {
 					const { name, email, date } = commit.committer!;
 					emit(`committer ${name} <${email}> ${humanDateToGit(date)}`);
-				} else if (hdr.startsWith("data ")) {
-					const oldLen = Number.parseInt(hdr.slice(5), 10);
+				} else if (hdr.startsWith("data ") && commit) {
 					const newMsg = commit.message;
 					const newLen = Buffer.byteLength(`${newMsg}\n`);
 					emit(`data ${newLen}`);
 					outParts.push(Buffer.from(`${newMsg}\n`));
-					skipDataBytes(oldLen);
-					donePatchingHeaders = true;
+					skipDataBytes(dataLen);
+				} else if (hdr.startsWith("data ")) {
+					emitLine(hdr);
+					emitDataBytes(dataLen);
 				} else {
 					emitLine(hdr);
 				}
 			}
 
+			// Pass through from/merge/file-op lines
 			while (pos < buf.length) {
 				const next = peekLine();
 				if (isTopLevel(next)) break;
@@ -175,6 +190,16 @@ export function patchFastExportStream(
 		emitLine(line);
 	}
 
+	// Every JSON commit must have matched a stream commit
+	if (matchedHashes.size !== commits.length) {
+		const unmatched = commits
+			.filter((c) => !matchedHashes.has(c.original_hash!))
+			.map((c) => c.original_hash);
+		throw new Error(
+			`${commits.length - matchedHashes.size} commit(s) in JSON not found in repository: ${unmatched.join(", ")}`,
+		);
+	}
+
 	return Buffer.concat(outParts);
 }
 
@@ -200,29 +225,4 @@ function humanDateToGit(date: string): string {
 	const utcMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, +s) - offsetMs;
 	const timestamp = Math.floor(utcMs / 1000);
 	return `${timestamp} ${tz}`;
-}
-
-function countCommits(stream: Buffer): number {
-	const buf = stream;
-	let pos = 0;
-	let count = 0;
-
-	function readLine(): string {
-		const start = pos;
-		while (pos < buf.length && buf[pos] !== 0x0a) pos++;
-		const line = buf.toString("utf8", start, pos);
-		if (pos < buf.length) pos++;
-		return line;
-	}
-
-	while (pos < buf.length) {
-		const line = readLine();
-		if (line.startsWith("commit ")) count++;
-		if (line.startsWith("data ")) {
-			const n = Number.parseInt(line.slice(5), 10);
-			pos += n;
-			if (pos < buf.length && buf[pos] === 0x0a) pos++;
-		}
-	}
-	return count;
 }

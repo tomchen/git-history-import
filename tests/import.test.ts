@@ -142,6 +142,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						author: {
 							name: "A",
 							email: "a@a",
@@ -168,6 +169,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						message: "hi",
 						author: {
 							name: "A",
@@ -190,6 +192,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						message: "hi",
 						author: { email: "a@a", date: "2024-01-01 00:00:00 +0000" },
 						committer: {
@@ -213,6 +216,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						message: "hi",
 						author: { name: "A", date: "2024-01-01 00:00:00 +0000" },
 						committer: {
@@ -236,6 +240,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						message: "hi",
 						author: { name: "A", email: "a@a" },
 						committer: {
@@ -259,6 +264,7 @@ describe("importHistory", () => {
 			JSON.stringify({
 				commits: [
 					{
+						original_hash: "abc123",
 						message: "hi",
 						committer: {
 							name: "A",
@@ -272,14 +278,48 @@ describe("importHistory", () => {
 		expect(() => importHistory(jsonFile, { noBackup: true })).toThrow(/author/);
 	});
 
-	it("rejects reordered commits", () => {
+	it("succeeds with reordered commits array (matched by hash)", () => {
 		const jsonStr = exportHistory({});
 		const data = JSON.parse(jsonStr!);
 		data.commits.reverse();
 		const jsonFile = join(tmpDir, "reversed.json");
 		writeFileSync(jsonFile, JSON.stringify(data));
+		// Should succeed — hash matching ignores array order
+		importHistory(jsonFile, { noBackup: true });
+		// Messages should still be in correct git order (not reversed)
+		const log = execSync('git log --format="%s" --reverse', {
+			encoding: "utf-8",
+		})
+			.trim()
+			.split("\n");
+		// The messages match the original commits, just the JSON array was reversed
+		expect(log.length).toBe(2);
+	});
+
+	it("rejects commit with missing original_hash", () => {
+		const jsonFile = join(tmpDir, "no-hash.json");
+		writeFileSync(
+			jsonFile,
+			JSON.stringify({
+				commits: [
+					{
+						message: "hi",
+						author: {
+							name: "A",
+							email: "a@a",
+							date: "2024-01-01 00:00:00 +0000",
+						},
+						committer: {
+							name: "A",
+							email: "a@a",
+							date: "2024-01-01 00:00:00 +0000",
+						},
+					},
+				],
+			}),
+		);
 		expect(() => importHistory(jsonFile, { noBackup: true })).toThrow(
-			/identity mismatch/i,
+			/original_hash/i,
 		);
 	});
 });

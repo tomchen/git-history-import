@@ -219,36 +219,35 @@ describe("githe e2e", () => {
 		rmSync(tmpJsonDir, { recursive: true, force: true });
 	});
 
-	it("--range export and import round-trip", () => {
+	it("--range export and import round-trip preserves full history", () => {
+		// repoDir has 3+ commits at this point
 		const tmpJsonDir = mkdtempSync(join(tmpdir(), "githe-e2e-range-"));
 		const jsonFile = join(tmpJsonDir, "range.json");
 
-		// Export only the last commit using a ref (full branch ref instead of range)
-		// Using refs/heads/master to get a single-commit round-trip
-		run(`export -o ${jsonFile} --range HEAD`);
+		// Export only the last commit
+		run(`export -o ${jsonFile} --range HEAD~1..HEAD`);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
-		expect(data.commits.length).toBeGreaterThanOrEqual(1);
-		expect(data.ref).toBe("HEAD");
+		expect(data.commits.length).toBe(1);
 
-		// Modify the last commit's message and import
-		const lastIdx = data.commits.length - 1;
-		const originalFirst = data.commits[0].message;
-		data.commits[lastIdx].message = "RANGE-MODIFIED";
+		// Modify the message
+		data.commits[0].message = "RANGE-MODIFIED";
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+
+		// Import — should patch only the last commit, preserve full history
 		run(`import ${jsonFile} --no-backup`);
 
-		// Verify the last commit was changed
+		// ALL commits should still exist
 		const log = execSync("git log --format='%s' --reverse", {
 			encoding: "utf-8",
 			cwd: repoDir,
 		})
 			.trim()
 			.split("\n");
+		// Should have 3+ commits (the original ones plus any from other tests)
+		// The last one should be modified
 		expect(log[log.length - 1]).toBe("RANGE-MODIFIED");
-		// When exporting all commits, earlier commits should be unchanged
-		if (log.length > 1) {
-			expect(log[0]).toBe(originalFirst);
-		}
+		// Earlier commits should still exist
+		expect(log.length).toBeGreaterThanOrEqual(3);
 
 		rmSync(tmpJsonDir, { recursive: true, force: true });
 	});
