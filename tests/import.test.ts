@@ -98,6 +98,32 @@ describe("importHistory", () => {
 		unlinkSync(join(repoDir, "dirty.txt"));
 	});
 
+	it("allows import file inside repo (exempted from clean check)", () => {
+		const jsonStr = exportHistory({});
+		const data = JSON.parse(jsonStr!);
+		// Write JSON inside the repo itself
+		const jsonFile = join(repoDir, "history.json");
+		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+
+		// Should NOT throw dirty-tree error
+		importHistory(jsonFile, { noBackup: true });
+
+		unlinkSync(jsonFile);
+	});
+
+	it("still rejects other dirty files even when import file is in repo", () => {
+		const jsonStr = exportHistory({});
+		const data = JSON.parse(jsonStr!);
+		const jsonFile = join(repoDir, "history.json");
+		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
+		writeFileSync(join(repoDir, "other-dirty.txt"), "extra");
+
+		expect(() => importHistory(jsonFile, {})).toThrow(/clean|commit|stash/i);
+
+		unlinkSync(jsonFile);
+		unlinkSync(join(repoDir, "other-dirty.txt"));
+	});
+
 	it("rejects invalid JSON", () => {
 		const jsonFile = join(tmpDir, "bad.json");
 		writeFileSync(jsonFile, "not valid json {{{");

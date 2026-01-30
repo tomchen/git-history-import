@@ -9,12 +9,20 @@ export function isGitRepo(): boolean {
 	}
 }
 
-export function isWorkingTreeClean(): boolean {
+export function isWorkingTreeClean(ignore?: string[]): boolean {
 	try {
 		const status = execFileSync("git", ["status", "--porcelain"], {
 			encoding: "utf-8",
 		});
-		return status.trim() === "";
+		if (!ignore || ignore.length === 0) return status.trim() === "";
+		const lines = status
+			.split("\n")
+			.filter((l) => l.trim() !== "")
+			.filter((l) => {
+				const path = l.slice(3);
+				return !ignore.some((ig) => path === ig);
+			});
+		return lines.length === 0;
 	} catch {
 		return false;
 	}

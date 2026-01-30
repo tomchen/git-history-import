@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import {
 	createBackupBranch,
 	getCurrentBranch,
+	getRepoRoot,
 	gitFastExport,
 	gitFastImport,
 	gitResetHard,
@@ -20,7 +22,13 @@ export function importHistory(file: string, opts: ImportOptions): void {
 		throw new Error("Not a git repository");
 	}
 
-	if (!isWorkingTreeClean()) {
+	// Allow the import JSON file itself to be inside the repo
+	const absFile = resolve(file);
+	const repoRoot = getRepoRoot();
+	const relFile = relative(repoRoot, absFile);
+	const isInsideRepo = !relFile.startsWith("..") && !relFile.startsWith("/");
+
+	if (!isWorkingTreeClean(isInsideRepo ? [relFile] : undefined)) {
 		throw new Error(
 			"Working tree is not clean. Please commit or stash your changes first.",
 		);
