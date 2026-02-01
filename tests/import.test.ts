@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import {
+	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
@@ -88,40 +89,41 @@ describe("importHistory", () => {
 		expect(branches).toContain("githe-backup-");
 	});
 
-	it("rejects dirty working tree", () => {
-		writeFileSync(join(repoDir, "dirty.txt"), "uncommitted");
+	it("rejects dirty working tree (tracked file modified)", () => {
+		// Modify a tracked file — this should be rejected
+		writeFileSync(join(repoDir, "file.txt"), "dirty content");
 		const jsonFile = join(tmpDir, "history.json");
 		writeFileSync(jsonFile, "{}");
 
 		expect(() => importHistory(jsonFile, {})).toThrow(/clean|commit|stash/i);
 
-		unlinkSync(join(repoDir, "dirty.txt"));
+		// Restore tracked file
+		execSync("git checkout -- file.txt", { cwd: repoDir });
 	});
 
-	it("allows import file inside repo (exempted from clean check)", () => {
+	it("allows import file inside repo (untracked files ignored)", () => {
 		const jsonStr = exportHistory({});
 		const data = JSON.parse(jsonStr!);
-		// Write JSON inside the repo itself
+		// Write JSON inside the repo itself — untracked, should be OK
 		const jsonFile = join(repoDir, "history.json");
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
-		// Should NOT throw dirty-tree error
 		importHistory(jsonFile, { noBackup: true });
 
 		unlinkSync(jsonFile);
 	});
 
-	it("still rejects other dirty files even when import file is in repo", () => {
+	it("allows import file in subdirectory inside repo", () => {
 		const jsonStr = exportHistory({});
 		const data = JSON.parse(jsonStr!);
-		const jsonFile = join(repoDir, "history.json");
+		const subDir = join(repoDir, "sub");
+		mkdirSync(subDir, { recursive: true });
+		const jsonFile = join(subDir, "history.json");
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
-		writeFileSync(join(repoDir, "other-dirty.txt"), "extra");
 
-		expect(() => importHistory(jsonFile, {})).toThrow(/clean|commit|stash/i);
+		importHistory(jsonFile, { noBackup: true });
 
-		unlinkSync(jsonFile);
-		unlinkSync(join(repoDir, "other-dirty.txt"));
+		rmSync(subDir, { recursive: true, force: true });
 	});
 
 	it("rejects invalid JSON", () => {

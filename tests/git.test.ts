@@ -47,11 +47,18 @@ describe("git helpers inside a repo", () => {
 		expect(getCommitHash("HEAD")).toBe(expected);
 	});
 
-	it("isWorkingTreeClean returns false for dirty tree", () => {
-		writeFileSync(join(repoDir, "dirty.txt"), "untracked");
+	it("isWorkingTreeClean returns false for modified tracked file", () => {
+		writeFileSync(join(repoDir, "file.txt"), "modified");
 		const result = isWorkingTreeClean();
-		rmSync(join(repoDir, "dirty.txt"));
+		execSync("git checkout -- file.txt", { cwd: repoDir });
 		expect(result).toBe(false);
+	});
+
+	it("isWorkingTreeClean ignores untracked files", () => {
+		writeFileSync(join(repoDir, "untracked.txt"), "new");
+		const result = isWorkingTreeClean();
+		rmSync(join(repoDir, "untracked.txt"));
+		expect(result).toBe(true);
 	});
 
 	it("getCurrentRef returns refs/heads/<branch>", () => {

@@ -9,20 +9,14 @@ export function isGitRepo(): boolean {
 	}
 }
 
-export function isWorkingTreeClean(ignore?: string[]): boolean {
+export function isWorkingTreeClean(): boolean {
 	try {
-		const status = execFileSync("git", ["status", "--porcelain"], {
-			encoding: "utf-8",
+		// Only check tracked files — untracked files (including the import
+		// JSON) are irrelevant and won't be touched by git reset --hard.
+		execFileSync("git", ["diff-index", "--quiet", "HEAD"], {
+			stdio: "pipe",
 		});
-		if (!ignore || ignore.length === 0) return status.trim() === "";
-		const lines = status
-			.split("\n")
-			.filter((l) => l.trim() !== "")
-			.filter((l) => {
-				const path = l.slice(3);
-				return !ignore.some((ig) => path === ig);
-			});
-		return lines.length === 0;
+		return true;
 	} catch {
 		return false;
 	}
