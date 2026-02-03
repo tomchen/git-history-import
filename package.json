@@ -38,11 +38,11 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/toolsu/githe.git"
+		"url": "git+https://github.com/tomchen/githe.git"
 	},
-	"homepage": "https://github.com/toolsu/githe#readme",
+	"homepage": "https://github.com/tomchen/githe#readme",
 	"bugs": {
-		"url": "https://github.com/toolsu/githe/issues"
+		"url": "https://github.com/tomchen/githe/issues"
 	},
 	"license": "MIT",
 	"devDependencies": {

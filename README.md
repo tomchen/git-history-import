@@ -1,5 +1,7 @@
 # githe
 
+[![npm package](https://img.shields.io/badge/npm%20i%20--g-githe-blue)](https://www.npmjs.com/package/githe) [![version number](https://img.shields.io/npm/v/githe)](https://www.npmjs.com/package/githe?activeTab=versions) [![Actions Status](https://github.com/toolsu/githe/workflows/Test/badge.svg)](https://github.com/toolsu/githe/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/toolsu/githe/blob/main/LICENSE)
+
 Export git history to JSON, edit it, import it back.
 
 githe wraps `git fast-export` and `git fast-import` to let you dump a repository's commit history into a plain JSON file, modify whatever you need in any text editor, then replay the changes back to rewrite the history.
@@ -7,7 +9,7 @@ githe wraps `git fast-export` and `git fast-import` to let you dump a repository
 ## Install
 
 ```bash
-npm install -g githe
+npm i -g githe
 ```
 
 ## Usage
