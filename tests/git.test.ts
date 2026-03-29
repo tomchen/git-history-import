@@ -11,7 +11,7 @@ import {
 } from "../src/git.js";
 
 function createTestRepo() {
-	const dir = mkdtempSync(join(tmpdir(), "githe-git-"));
+	const dir = mkdtempSync(join(tmpdir(), "ghi-git-"));
 	execSync("git init", { cwd: dir });
 	execSync('git config user.email "test@test.com"', { cwd: dir });
 	execSync('git config user.name "Test"', { cwd: dir });
@@ -85,7 +85,7 @@ describe("git helpers outside a repo", () => {
 
 	beforeAll(() => {
 		origCwd = process.cwd();
-		noGitDir = mkdtempSync(join(tmpdir(), "githe-nogit-"));
+		noGitDir = mkdtempSync(join(tmpdir(), "ghi-nogit-"));
 		process.chdir(noGitDir);
 	});
 

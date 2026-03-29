@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // We import main (and exercise parseArgs / printUsage) by calling main() directly.
-// The auto-run guard is in bin/githe.js (not cli.ts), so importing here is safe.
+// The auto-run guard is in bin/ghi.js (not cli.ts), so importing here is safe.
 import { main } from "../src/cli.js";
 
 function createTestRepo() {
-	const dir = mkdtempSync(join(tmpdir(), "githe-cli-"));
+	const dir = mkdtempSync(join(tmpdir(), "ghi-cli-"));
 	execSync("git init", { cwd: dir });
 	execSync('git config user.email "test@test.com"', { cwd: dir });
 	execSync('git config user.name "Test"', { cwd: dir });
@@ -26,7 +26,7 @@ describe("main() CLI", () => {
 	beforeAll(() => {
 		origCwd = process.cwd();
 		repoDir = createTestRepo();
-		tmpDir = mkdtempSync(join(tmpdir(), "githe-cli-json-"));
+		tmpDir = mkdtempSync(join(tmpdir(), "ghi-cli-json-"));
 		process.chdir(repoDir);
 	});
 
@@ -49,7 +49,7 @@ describe("main() CLI", () => {
 			expect((e as Error).message).toBe("exit:0");
 		}
 		expect(logSpy).toHaveBeenCalledWith(
-			expect.stringContaining("githe export"),
+			expect.stringContaining("ghi export"),
 		);
 		logSpy.mockRestore();
 		exitSpy.mockRestore();
@@ -68,7 +68,7 @@ describe("main() CLI", () => {
 			expect((e as Error).message).toBe("exit:0");
 		}
 		expect(logSpy).toHaveBeenCalledWith(
-			expect.stringContaining("githe export"),
+			expect.stringContaining("ghi export"),
 		);
 		logSpy.mockRestore();
 		exitSpy.mockRestore();
@@ -90,31 +90,35 @@ describe("main() CLI", () => {
 		exitSpy.mockRestore();
 	});
 
-	it("export command writes JSON to stdout", () => {
-		const writeSpy = vi
-			.spyOn(process.stdout, "write")
-			.mockImplementation(() => true);
-		main(["export"]);
-		expect(writeSpy).toHaveBeenCalled();
-		const written = writeSpy.mock.calls[0][0] as string;
-		expect(JSON.parse(written).version).toBe(1);
-		writeSpy.mockRestore();
+	it("export command writes JSON to file", () => {
+		const outFile = join(tmpDir, "cli-out.json");
+		main(["export", outFile]);
+		const data = JSON.parse(readFileSync(outFile, "utf-8"));
+		expect(data.version).toBe(1);
 	});
 
 	it("parseArgs: --range option is parsed", () => {
-		const writeSpy = vi
-			.spyOn(process.stdout, "write")
-			.mockImplementation(() => true);
-		// Use HEAD..HEAD (empty range) to exercise the --range parsing path without needing 2 commits
-		main(["export", "--range", "refs/heads/master"]);
-		writeSpy.mockRestore();
+		const outFile = join(tmpDir, "cli-range.json");
+		main(["export", outFile, "--range", "refs/heads/master"]);
 	});
 
-	it("export command with -o writes to file", () => {
-		const outFile = join(tmpDir, "cli-out.json");
-		main(["export", "-o", outFile]);
-		const data = JSON.parse(readFileSync(outFile, "utf-8"));
-		expect(data.version).toBe(1);
+	it("export command without file path exits 1", () => {
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation((_code?: number) => {
+				throw new Error(`exit:${_code}`);
+			});
+		try {
+			main(["export"]);
+		} catch (e) {
+			expect((e as Error).message).toBe("exit:1");
+		}
+		expect(errSpy).toHaveBeenCalledWith(
+			expect.stringContaining("export requires a JSON file path"),
+		);
+		errSpy.mockRestore();
+		exitSpy.mockRestore();
 	});
 
 	it("import command without file path exits 1", () => {
@@ -179,7 +183,7 @@ describe("main() CLI", () => {
 	it("import command executes successfully with valid JSON", () => {
 		// First export
 		const jsonFile = join(tmpDir, "cli-import.json");
-		main(["export", "-o", jsonFile]);
+		main(["export", jsonFile]);
 
 		// Modify and import
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));

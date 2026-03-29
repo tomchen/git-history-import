@@ -2,7 +2,6 @@ import { exportHistory } from "./export.js";
 import { importHistory } from "./import.js";
 
 interface CliOptions {
-	output?: string;
 	range?: string;
 	noBackup?: boolean;
 	_: string[];
@@ -11,9 +10,7 @@ interface CliOptions {
 function parseArgs(args: string[]): CliOptions {
 	const opts: CliOptions = { _: [] };
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "-o" && args[i + 1]) {
-			opts.output = args[++i];
-		} else if (args[i] === "--range" && args[i + 1]) {
+		if (args[i] === "--range" && args[i + 1]) {
 			opts.range = args[++i];
 		} else if (args[i] === "--no-backup") {
 			opts.noBackup = true;
@@ -29,8 +26,8 @@ function parseArgs(args: string[]): CliOptions {
 
 function printUsage(): void {
 	console.log(`Usage:
-  githe export [-o <file>] [--range <range>]
-  githe import <file> [--no-backup]`);
+  ghi export <file> [--range <range>]
+  ghi import <file> [--no-backup]`);
 }
 
 export function main(argv: string[]): void {
@@ -44,10 +41,12 @@ export function main(argv: string[]): void {
 	const opts = parseArgs(argv.slice(1));
 
 	if (command === "export") {
-		const result = exportHistory(opts);
-		if (result !== undefined) {
-			process.stdout.write(result);
+		const file = opts._[0];
+		if (!file) {
+			console.error("Error: export requires a JSON file path");
+			process.exit(1);
 		}
+		exportHistory(file, opts);
 	} else if (command === "import") {
 		const file = opts._[0];
 		if (!file) {

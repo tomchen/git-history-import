@@ -1,15 +1,15 @@
-# githe
+# git-history-import
 
-[![npm package](https://img.shields.io/badge/npm%20i%20--g-githe-blue)](https://www.npmjs.com/package/githe) [![version number](https://img.shields.io/npm/v/githe)](https://www.npmjs.com/package/githe?activeTab=versions) [![Actions Status](https://github.com/toolsu/githe/workflows/Test/badge.svg)](https://github.com/toolsu/githe/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/toolsu/githe/blob/main/LICENSE)
+[![npm package](https://img.shields.io/badge/npm%20i%20--g-git--history--import-blue)](https://www.npmjs.com/package/git-history-import) [![version number](https://img.shields.io/npm/v/git-history-import)](https://www.npmjs.com/package/git-history-import?activeTab=versions) [![Actions Status](https://github.com/tomchen/git-history-import/workflows/Test/badge.svg)](https://github.com/tomchen/git-history-import/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/tomchen/git-history-import/blob/main/LICENSE)
 
 Export git history to JSON, edit it, import it back.
 
-githe wraps `git fast-export` and `git fast-import` to let you dump a repository's commit history into a plain JSON file, modify whatever you need in any text editor, then replay the changes back to rewrite the history.
+git-history-import wraps `git fast-export` and `git fast-import` to let you dump a repository's commit history into a plain JSON file, modify whatever you need in any text editor, then replay the changes back to rewrite the history.
 
 ## Install
 
 ```bash
-npm i -g githe
+npm i -g git-history-import
 ```
 
 ## Usage
@@ -18,26 +18,26 @@ Basic workflow:
 
 ```bash
 # Export history to JSON
-githe export -o history.json
+ghi export history.json
 
 # Edit history.json with any editor...
 # Change commit messages, author names, emails, dates, etc.
 
 # Import modified history
-githe import history.json
+ghi import history.json
 ```
 
 All options:
 
 ```bash
 # Export to stdout
-githe export
+ghi export
 
 # Export specific range
-githe export -o history.json --range HEAD~5..HEAD
+ghi export history.json --range HEAD~5..HEAD
 
 # Import without creating backup branch
-githe import history.json --no-backup
+ghi import history.json --no-backup
 ```
 
 ## JSON Format
@@ -80,7 +80,7 @@ The following fields are rewritten during import:
 - `author.name`, `author.email`, `author.date` — authorship
 - `committer.name`, `committer.email`, `committer.date` — committer identity
 
-The `original_hash` field is **required** for import. githe matches each JSON entry to a commit in the repository by this hash and only patches commits that appear in the JSON. This means you can safely export a subset with `--range`, edit it, and import it back — only the matching commits are rewritten, and the rest of the history is preserved unchanged.
+The `original_hash` field is **required** for import. ghi matches each JSON entry to a commit in the repository by this hash and only patches commits that appear in the JSON. This means you can safely export a subset with `--range`, edit it, and import it back — only the matching commits are rewritten, and the rest of the history is preserved unchanged.
 
 The order of entries in the `commits` array does not matter. You may also remove entries you don't want to edit. However, you must not add entries whose `original_hash` does not exist in the current branch.
 
@@ -88,17 +88,17 @@ The `parents` and `ref` fields are exported for reference only and are not used 
 
 ## Backup and Recovery
 
-By default, `githe import` creates a backup branch named `githe-backup-<timestamp>` pointing to the original HEAD before rewriting history.
+By default, `ghi import` creates a backup branch named `ghi-backup-<timestamp>` pointing to the original HEAD before rewriting history.
 
 To recover the original history:
 
 ```bash
 # Check the backup branch name printed during import, then:
-git checkout githe-backup-<timestamp>
+git checkout ghi-backup-<timestamp>
 
 # Or reset your current branch back to the backup
 git checkout main
-git reset --hard githe-backup-<timestamp>
+git reset --hard ghi-backup-<timestamp>
 ```
 
 Use `--no-backup` to skip creating the backup branch if you do not need it.
@@ -109,7 +109,7 @@ After importing, the old commits still exist as dangling objects in the object d
 
 ```bash
 # 1. Delete backup branch
-git branch -D githe-backup-<timestamp>
+git branch -D ghi-backup-<timestamp>
 
 # 2. Expire reflog
 git reflog expire --expire=now --all
@@ -127,10 +127,10 @@ git push --force
 
 ## Programmatic API
 
-githe can also be used as a library:
+git-history-import can also be used as a library:
 
 ```ts
-import { exportHistory, importHistory, parseFastExport, patchFastExportStream } from "githe";
+import { exportHistory, importHistory, parseFastExport, patchFastExportStream } from "git-history-import";
 
 // Export commits as a JSON string
 const json = exportHistory({ range: "HEAD~5..HEAD" });
@@ -143,7 +143,7 @@ Full TypeScript type definitions are included.
 
 ## Limitations
 
-- **Current branch only.** githe exports and imports the current branch. Detached HEAD is not supported.
+- **Current branch only.** ghi exports and imports the current branch. Detached HEAD is not supported.
 - **`original_hash` is required.** Every commit in the JSON must have an `original_hash` that exists in the current branch. Commits with missing or unknown hashes are rejected.
 - **Scalability.** The entire fast-export stream is buffered in memory. Very large repositories (hundreds of MB of history) may exceed the 100 MB buffer limit.
 

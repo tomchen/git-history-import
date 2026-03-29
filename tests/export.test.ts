@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { exportHistory } from "../src/export.js";
 
 function createTestRepo() {
-	const dir = mkdtempSync(join(tmpdir(), "githe-test-"));
+	const dir = mkdtempSync(join(tmpdir(), "ghi-test-"));
 	execSync("git init", { cwd: dir });
 	execSync('git config user.email "test@test.com"', { cwd: dir });
 	execSync('git config user.name "Test"', { cwd: dir });
@@ -32,9 +32,10 @@ describe("exportHistory", () => {
 		rmSync(repoDir, { recursive: true, force: true });
 	});
 
-	it("exports commits to JSON object", () => {
-		const result = exportHistory({});
-		const json = JSON.parse(result);
+	it("exports commits to JSON file", () => {
+		const outFile = join(repoDir, "out.json");
+		exportHistory(outFile, {});
+		const json = JSON.parse(readFileSync(outFile, "utf-8"));
 		expect(json.version).toBe(1);
 		expect(json.commits.length).toBe(2);
 		expect(json.commits[0].message).toBe("first commit");
@@ -45,24 +46,18 @@ describe("exportHistory", () => {
 		expect(json.exported_at).toBeTruthy();
 	});
 
-	it("exports to file when -o is given", () => {
-		const outFile = join(repoDir, "out.json");
-		exportHistory({ output: outFile });
-		const json = JSON.parse(readFileSync(outFile, "utf-8"));
-		expect(json.commits.length).toBe(2);
-	});
-
 	it("exported JSON contains ref field", () => {
-		const result = exportHistory({});
-		const json = JSON.parse(result);
+		const outFile = join(repoDir, "ref.json");
+		exportHistory(outFile, {});
+		const json = JSON.parse(readFileSync(outFile, "utf-8"));
 		expect(json.ref).toBeTruthy();
 		expect(typeof json.ref).toBe("string");
 	});
 
 	it("fails outside a git repo", () => {
-		const tmpDir = mkdtempSync(join(tmpdir(), "githe-nogit-"));
+		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-nogit-"));
 		process.chdir(tmpDir);
-		expect(() => exportHistory({})).toThrow(/not a git repository/i);
+		expect(() => exportHistory(join(tmpDir, "out.json"), {})).toThrow(/not a git repository/i);
 		process.chdir(repoDir);
 		rmSync(tmpDir, { recursive: true, force: true });
 	});

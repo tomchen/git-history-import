@@ -14,7 +14,7 @@ import { exportHistory } from "../src/export.js";
 import { importHistory } from "../src/import.js";
 
 function createTestRepo() {
-	const dir = mkdtempSync(join(tmpdir(), "githe-test-"));
+	const dir = mkdtempSync(join(tmpdir(), "ghi-test-"));
 	execSync("git init", { cwd: dir });
 	execSync('git config user.email "test@test.com"', { cwd: dir });
 	execSync('git config user.name "Test"', { cwd: dir });
@@ -33,7 +33,7 @@ describe("importHistory", () => {
 	beforeAll(() => {
 		origCwd = process.cwd();
 		repoDir = createTestRepo();
-		tmpDir = mkdtempSync(join(tmpdir(), "githe-json-"));
+		tmpDir = mkdtempSync(join(tmpdir(), "ghi-json-"));
 		process.chdir(repoDir);
 	});
 
@@ -44,11 +44,11 @@ describe("importHistory", () => {
 	});
 
 	it("rewrites commit messages from modified JSON", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr);
+		const jsonFile = join(tmpDir, "history.json");
+		exportHistory(jsonFile, {});
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		data.commits[0].message = "modified first";
 		data.commits[1].message = "modified second";
-		const jsonFile = join(tmpDir, "history.json");
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
 		importHistory(jsonFile, { noBackup: true });
@@ -60,11 +60,11 @@ describe("importHistory", () => {
 	});
 
 	it("rewrites author info from modified JSON", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr);
+		const jsonFile = join(tmpDir, "history.json");
+		exportHistory(jsonFile, {});
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		data.commits[0].author.name = "NewAuthor";
 		data.commits[0].author.email = "new@author.com";
-		const jsonFile = join(tmpDir, "history.json");
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
 		importHistory(jsonFile, { noBackup: true });
@@ -78,15 +78,15 @@ describe("importHistory", () => {
 	});
 
 	it("creates backup branch by default", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr);
 		const jsonFile = join(tmpDir, "history.json");
+		exportHistory(jsonFile, {});
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
 		importHistory(jsonFile, {});
 
 		const branches = execSync("git branch", { encoding: "utf-8" });
-		expect(branches).toContain("githe-backup-");
+		expect(branches).toContain("ghi-backup-");
 	});
 
 	it("rejects dirty working tree (tracked file modified)", () => {
@@ -102,8 +102,9 @@ describe("importHistory", () => {
 	});
 
 	it("allows import file inside repo (untracked files ignored)", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr!);
+		const exportFile = join(tmpDir, "export-tmp.json");
+		exportHistory(exportFile, {});
+		const data = JSON.parse(readFileSync(exportFile, "utf-8"));
 		// Write JSON inside the repo itself — untracked, should be OK
 		const jsonFile = join(repoDir, "history.json");
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
@@ -114,8 +115,9 @@ describe("importHistory", () => {
 	});
 
 	it("allows import file in subdirectory inside repo", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr!);
+		const exportFile = join(tmpDir, "export-tmp2.json");
+		exportHistory(exportFile, {});
+		const data = JSON.parse(readFileSync(exportFile, "utf-8"));
 		const subDir = join(repoDir, "sub");
 		mkdirSync(subDir, { recursive: true });
 		const jsonFile = join(subDir, "history.json");
@@ -143,10 +145,10 @@ describe("importHistory", () => {
 	});
 
 	it("preserves file content after rewrite", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr);
-		data.commits[0].message = "changed msg";
 		const jsonFile = join(tmpDir, "history.json");
+		exportHistory(jsonFile, {});
+		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
+		data.commits[0].message = "changed msg";
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
 
 		importHistory(jsonFile, { noBackup: true });
@@ -307,8 +309,9 @@ describe("importHistory", () => {
 	});
 
 	it("succeeds with reordered commits array (matched by hash)", () => {
-		const jsonStr = exportHistory({});
-		const data = JSON.parse(jsonStr!);
+		const exportFile = join(tmpDir, "export-reorder.json");
+		exportHistory(exportFile, {});
+		const data = JSON.parse(readFileSync(exportFile, "utf-8"));
 		data.commits.reverse();
 		const jsonFile = join(tmpDir, "reversed.json");
 		writeFileSync(jsonFile, JSON.stringify(data));
@@ -358,7 +361,7 @@ describe("importHistory on detached HEAD", () => {
 
 	beforeAll(() => {
 		origCwd = process.cwd();
-		repoDir = mkdtempSync(join(tmpdir(), "githe-detached-"));
+		repoDir = mkdtempSync(join(tmpdir(), "ghi-detached-"));
 		execSync("git init", { cwd: repoDir });
 		execSync('git config user.email "test@test.com"', { cwd: repoDir });
 		execSync('git config user.name "Test"', { cwd: repoDir });
@@ -374,7 +377,7 @@ describe("importHistory on detached HEAD", () => {
 	});
 
 	it("rejects import on detached HEAD", () => {
-		const tmpJson = mkdtempSync(join(tmpdir(), "githe-detached-json-"));
+		const tmpJson = mkdtempSync(join(tmpdir(), "ghi-detached-json-"));
 		const jsonFile = join(tmpJson, "dummy.json");
 		writeFileSync(
 			jsonFile,
@@ -407,7 +410,7 @@ describe("importHistory outside git repo", () => {
 
 	beforeAll(() => {
 		origCwd = process.cwd();
-		noGitDir = mkdtempSync(join(tmpdir(), "githe-nogit-"));
+		noGitDir = mkdtempSync(join(tmpdir(), "ghi-nogit-"));
 		process.chdir(noGitDir);
 	});
 

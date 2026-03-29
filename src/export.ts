@@ -3,11 +3,10 @@ import { getCurrentRef, getRepoRoot, gitFastExport, isGitRepo } from "./git.js";
 import { parseFastExport } from "./parser.js";
 
 export interface ExportOptions {
-	output?: string;
 	range?: string;
 }
 
-export function exportHistory(opts: ExportOptions): string | undefined {
+export function exportHistory(file: string, opts: ExportOptions): void {
 	if (!isGitRepo()) {
 		throw new Error("Not a git repository");
 	}
@@ -34,10 +33,6 @@ export function exportHistory(opts: ExportOptions): string | undefined {
 		2,
 	);
 
-	if (opts.output) {
-		writeFileSync(opts.output, output, "utf-8");
-		console.log(`Exported ${commits.length} commits to ${opts.output}`);
-		return undefined;
-	}
-	return output;
+	writeFileSync(file, output, "utf-8");
+	console.log(`Exported ${commits.length} commits to ${file}`);
 }

@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const CLI = join(import.meta.dirname, "..", "bin", "githe.js");
+const CLI = join(import.meta.dirname, "..", "bin", "ghi.js");
 
 function run(cmd: string, opts: Record<string, unknown> = {}) {
 	return execSync(`node ${CLI} ${cmd}`, { encoding: "utf-8", ...opts });
@@ -38,7 +38,7 @@ function runRaw(args: string[], opts: Record<string, unknown> = {}) {
 }
 
 function createTestRepo() {
-	const dir = mkdtempSync(join(tmpdir(), "githe-e2e-"));
+	const dir = mkdtempSync(join(tmpdir(), "ghi-e2e-"));
 	execSync("git init", { cwd: dir });
 	execSync('git config user.email "test@test.com"', { cwd: dir });
 	execSync('git config user.name "Test"', { cwd: dir });
@@ -51,7 +51,7 @@ function createTestRepo() {
 	return dir;
 }
 
-describe("githe e2e", () => {
+describe("ghi e2e", () => {
 	let origCwd: string;
 	let repoDir: string;
 
@@ -68,9 +68,9 @@ describe("githe e2e", () => {
 
 	it("full export → edit → import cycle", () => {
 		// Export — write JSON to a temp dir outside repo to keep working tree clean
-		const tmpDir = mkdtempSync(join(tmpdir(), "githe-e2e-json-"));
+		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-e2e-json-"));
 		const jsonFile = join(tmpDir, "history.json");
-		run(`export -o ${jsonFile}`);
+		run(`export ${jsonFile}`);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 
 		expect(data.version).toBe(1);
@@ -111,44 +111,42 @@ describe("githe e2e", () => {
 
 	it("shows usage with --help", () => {
 		const output = run("--help");
-		expect(output).toContain("githe export");
-		expect(output).toContain("githe import");
+		expect(output).toContain("ghi export");
+		expect(output).toContain("ghi import");
 	});
 
 	it("shows usage with -h", () => {
 		const result = runRaw(["-h"]);
-		expect(result.stdout).toContain("githe export");
+		expect(result.stdout).toContain("ghi export");
 		expect(result.code).toBe(0);
 	});
 
 	it("shows usage with no arguments", () => {
 		const result = runRaw([]);
-		expect(result.stdout).toContain("githe export");
+		expect(result.stdout).toContain("ghi export");
 		expect(result.code).toBe(0);
 	});
 
-	it("exports and writes to stdout when no -o flag", () => {
-		const result = runRaw(["export"]);
-		expect(result.code).toBe(0);
-		const data = JSON.parse(result.stdout);
-		expect(data.version).toBe(1);
-		expect(Array.isArray(data.commits)).toBe(true);
-	});
-
-	it("exports to file with -o flag", () => {
-		const tmpDir = mkdtempSync(join(tmpdir(), "githe-e2e-cli-"));
+	it("exports to file", () => {
+		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-e2e-cli-"));
 		const jsonFile = join(tmpDir, "out.json");
-		const result = runRaw(["export", "-o", jsonFile]);
+		const result = runRaw(["export", jsonFile]);
 		expect(result.code).toBe(0);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		expect(data.version).toBe(1);
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
+	it("errors on export with missing file path", () => {
+		const result = runRaw(["export"]);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain("export requires a JSON file path");
+	});
+
 	it("imports from file with --no-backup", () => {
-		const tmpDir = mkdtempSync(join(tmpdir(), "githe-e2e-cli-"));
+		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-e2e-cli-"));
 		const jsonFile = join(tmpDir, "history.json");
-		run(`export -o ${jsonFile}`);
+		run(`export ${jsonFile}`);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		data.commits[0].message = "cli-imported commit";
 		writeFileSync(jsonFile, JSON.stringify(data, null, 2));
@@ -177,7 +175,7 @@ describe("githe e2e", () => {
 	});
 
 	it("error catch handler prints message and exits 1", () => {
-		const tmpDir = mkdtempSync(join(tmpdir(), "githe-e2e-cli-"));
+		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-e2e-cli-"));
 		const badJson = join(tmpDir, "bad.json");
 		writeFileSync(badJson, "not json");
 		const result = runRaw(["import", badJson, "--no-backup"]);
@@ -194,9 +192,9 @@ describe("githe e2e", () => {
 			cwd: repoDir,
 		});
 
-		const tmpJsonDir = mkdtempSync(join(tmpdir(), "githe-e2e-binary-"));
+		const tmpJsonDir = mkdtempSync(join(tmpdir(), "ghi-e2e-binary-"));
 		const jsonFile = join(tmpJsonDir, "history.json");
-		run(`export -o ${jsonFile}`);
+		run(`export ${jsonFile}`);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 
 		// Modify a commit message (not the binary content)
@@ -221,11 +219,11 @@ describe("githe e2e", () => {
 
 	it("--range export and import round-trip preserves full history", () => {
 		// repoDir has 3+ commits at this point
-		const tmpJsonDir = mkdtempSync(join(tmpdir(), "githe-e2e-range-"));
+		const tmpJsonDir = mkdtempSync(join(tmpdir(), "ghi-e2e-range-"));
 		const jsonFile = join(tmpJsonDir, "range.json");
 
 		// Export only the last commit
-		run(`export -o ${jsonFile} --range HEAD~1..HEAD`);
+		run(`export ${jsonFile} --range HEAD~1..HEAD`);
 		const data = JSON.parse(readFileSync(jsonFile, "utf-8"));
 		expect(data.commits.length).toBe(1);
 
@@ -255,7 +253,7 @@ describe("githe e2e", () => {
 	it("does not execute shell metacharacters in --range", () => {
 		try {
 			execSync(
-				`node ${CLI} export --range 'HEAD; touch ${join(repoDir, "injected.txt")}'`,
+				`node ${CLI} export /dev/null --range 'HEAD; touch ${join(repoDir, "injected.txt")}'`,
 				{
 					encoding: "utf-8",
 					cwd: repoDir,

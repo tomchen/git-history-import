@@ -58,7 +58,7 @@ export function getCommitHash(ref: string): string {
 
 export function createBackupBranch(): string {
 	const timestamp = Date.now();
-	const branchName = `githe-backup-${timestamp}`;
+	const branchName = `ghi-backup-${timestamp}`;
 	execFileSync("git", ["branch", branchName], { stdio: "pipe" });
 	return branchName;
 }

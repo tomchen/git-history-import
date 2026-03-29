@@ -68,7 +68,7 @@ export function importHistory(file: string, opts: ImportOptions): void {
 	console.log("To completely purge old history:");
 	console.log("");
 	console.log("# 1. Delete backup branch:");
-	console.log("git branch -D githe-backup-<timestamp>");
+	console.log("git branch -D ghi-backup-<timestamp>");
 	console.log("# 2. Expire reflog:");
 	console.log("git reflog expire --expire=now --all");
 	console.log("# 3. Garbage collect:");
