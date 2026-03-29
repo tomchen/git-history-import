@@ -48,9 +48,7 @@ describe("main() CLI", () => {
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:0");
 		}
-		expect(logSpy).toHaveBeenCalledWith(
-			expect.stringContaining("ghi export"),
-		);
+		expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("ghi export"));
 		logSpy.mockRestore();
 		exitSpy.mockRestore();
 	});
@@ -67,9 +65,7 @@ describe("main() CLI", () => {
 		} catch (e) {
 			expect((e as Error).message).toBe("exit:0");
 		}
-		expect(logSpy).toHaveBeenCalledWith(
-			expect.stringContaining("ghi export"),
-		);
+		expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("ghi export"));
 		logSpy.mockRestore();
 		exitSpy.mockRestore();
 	});

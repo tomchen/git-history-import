@@ -23,11 +23,16 @@
 	},
 	"scripts": {
 		"build": "tsc",
+		"check": "npm run lint:check && npm run format:check && npm run typecheck",
+		"clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
+		"lint": "biome lint --write .",
+		"lint:check": "biome lint .",
+		"prepublishOnly": "npm run clean && npm run build",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"lint": "biome check .",
-		"lint:fix": "biome check --write .",
-		"prepublishOnly": "npm run build"
+		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
 		"git",

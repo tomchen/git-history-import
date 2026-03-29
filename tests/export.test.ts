@@ -57,7 +57,9 @@ describe("exportHistory", () => {
 	it("fails outside a git repo", () => {
 		const tmpDir = mkdtempSync(join(tmpdir(), "ghi-nogit-"));
 		process.chdir(tmpDir);
-		expect(() => exportHistory(join(tmpDir, "out.json"), {})).toThrow(/not a git repository/i);
+		expect(() => exportHistory(join(tmpDir, "out.json"), {})).toThrow(
+			/not a git repository/i,
+		);
 		process.chdir(repoDir);
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
