@@ -51,8 +51,10 @@ export function importHistory(file: string, opts: ImportOptions): void {
 
 	const ref = `refs/heads/${branch}`;
 
+	let backupBranch = null;
+
 	if (!opts.noBackup) {
-		const backupBranch = createBackupBranch();
+		backupBranch = createBackupBranch();
 		console.log(`Backup branch created: ${backupBranch}`);
 	}
 
@@ -67,15 +69,17 @@ export function importHistory(file: string, opts: ImportOptions): void {
 	console.log("");
 	console.log("To completely purge old history:");
 	console.log("");
-	console.log("# 1. Delete backup branch:");
-	console.log("git branch -D ghi-backup-<timestamp>");
-	console.log("# 2. Expire reflog:");
+	if (backupBranch) {
+		console.log("# Delete backup branch:");
+		console.log(`git branch -D ${backupBranch}`);
+	}
+	console.log("# Expire reflog:");
 	console.log("git reflog expire --expire=now --all");
-	console.log("# 3. Garbage collect:");
+	console.log("# Garbage collect:");
 	console.log("git gc --prune=now --aggressive");
-	console.log("# 4. Force push to remote:");
+	console.log("# Force push to remote:");
 	console.log("git push --force");
-	console.log("# 5. All collaborators must re-clone");
+	console.log("# All collaborators must re-clone");
 }
 
 function validateCommit(c: unknown, index: number): Commit {
