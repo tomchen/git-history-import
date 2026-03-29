@@ -4,7 +4,7 @@ Export git history to JSON, edit it, import it back.
 
 git-history-import wraps `git fast-export` and `git fast-import` to let you dump a repository's commit history into a plain JSON file, modify whatever you need in any text editor, then replay the changes back to rewrite the history.
 
-[![npm package](https://img.shields.io/badge/npm%20i%20--g-git--history--import-blue)](https://www.npmjs.com/package/git-history-import) [![version number](https://badgen.net/badge/version/0.2.1/yellow)](https://www.npmjs.com/package/git-history-import?activeTab=versions) [![Actions Status](https://github.com/tomchen/git-history-import/workflows/Test/badge.svg)](https://github.com/tomchen/git-history-import/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/tomchen/git-history-import/blob/main/LICENSE) <!-- vbt-version -->
+[![npm package](https://img.shields.io/badge/npm%20i%20--g-git--history--import-blue)](https://www.npmjs.com/package/git-history-import) [![version number](https://badgen.net/badge/version/0.3.0/yellow)](https://www.npmjs.com/package/git-history-import?activeTab=versions) [![Actions Status](https://github.com/tomchen/git-history-import/workflows/Test/badge.svg)](https://github.com/tomchen/git-history-import/actions) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/tomchen/git-history-import/blob/main/LICENSE) <!-- vbt-version -->
 
 ## Install
 
