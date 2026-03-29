@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { exportHistory } from "./export.js";
 import { importHistory } from "./import.js";
 
@@ -35,6 +36,13 @@ export function main(argv: string[]): void {
 
 	if (!command || command === "--help" || command === "-h") {
 		printUsage();
+		process.exit(0);
+	}
+
+	if (command === "--version" || command === "-v") {
+		const require = createRequire(import.meta.url);
+		const { version } = require("../package.json") as { version: string };
+		console.log(version);
 		process.exit(0);
 	}
 
