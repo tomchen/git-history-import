@@ -1,5 +1,5 @@
 {
 	"push": true,
-	"preBumpCheck": "npm run check && npm run test:coverage",
+	"preBump": "npm run check && npm run test:coverage",
 	"files": ["README.md"]
 }
